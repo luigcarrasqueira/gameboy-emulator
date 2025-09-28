@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>GameBoy Emulator</title>
+        <link rel="icon" type="image/x-icon" href="./favicon.png" />
+    </head>
+    <body>
+        <h1>GameBoy Emulator</h1>
+        <input id="romInput" type="file" accept=".gb,.gbc" />
+        <button id="startButton">Start</button>
+        <button id="stopButton">Stop</button>
+        <pre id="output"></pre>
+        <canvas id="screen" width="160" height="144" style="border:1px solid #ccc; image-rendering: pixelated;"></canvas>
+        <script type="module" src="./main.js"></script>
+    </body>
+</html>
