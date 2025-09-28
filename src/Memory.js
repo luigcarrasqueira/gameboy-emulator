@@ -1,6 +1,6 @@
 // Memória Simples
 export default class Memory {
-    constructor(size, readOnly = false) {
+    constructor(size, readOnly = 0) {
         this.data = new Uint8Array(size);
         this.readOnly = readOnly;
     }
@@ -11,7 +11,7 @@ export default class Memory {
     }
 
     writeByte(address, value) {
-        if (!this.readOnly) {
+        if (this.readOnly === 0) {
             address &= 0xFFFF;
             value &= 0xFF;
             this.data[address % this.data.length] = value;

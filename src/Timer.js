@@ -1,3 +1,5 @@
+import IRQ from "./IRQ.js";
+
 // Timer do Game Boy
 export default class Timer {
     constructor(requestInterrupt) {
@@ -66,7 +68,7 @@ export default class Timer {
 
                 if (this.reloadDelay === 0) {
                     this.TIMA = this.TMA;
-                    this.requestInterrupt(0x04); // Solicita interrupção de timer
+                    this.requestInterrupt(IRQ.TIMER); // Solicita interrupção de timer
                 }
             }
 

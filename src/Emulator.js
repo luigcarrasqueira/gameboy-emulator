@@ -4,38 +4,29 @@ import Memory from "./Memory.js";
 import MBC1 from "./MBC1.js";
 
 export default class Emulator {
-    constructor(cyclePerFrame = 70224, frameRate = 59.73) {
+    constructor(frameRate = 59.73) {
         this.console = new GameBoy();
-        this.cyclePerFrame = cyclePerFrame;
         this.frameRate = frameRate;
         this.running = false;
-    }
 
-    emulateFrame() {
-        let cycleExecuted = 0;
+        this._targetFrameTime = 1000 / this.frameRate;
 
-        while (cycleExecuted < this.cyclePerFrame && this.running) {
-            cycleExecuted += this.console.step();
-        }
+        this.onStop = null;
+        this.onHalt = null;
     }
 
     mainLoop() {
         if (!this.running) return;
-        const frameStart = performance.now();
-        const stopped = this.emulateFrame();
 
-        if (stopped) {
-            this.running = false;
-            if (this.onStop) this.onStop();
+        const start = performance.now();
+        const executed = this.console.step();
+        const elapsed = performance.now() - start;
+        const delay = Math.max(0, this._targetFrameTime - elapsed);
 
-            return;
-        }
-
-        const frameDuration = performance.now() - frameStart;
-        const targetFrameTime = 1000 / this.frameRate;
-        const delay = Math.max(0, targetFrameTime - frameDuration);
-
-        setTimeout(() => requestAnimationFrame(() => this.mainLoop()), delay);
+        setTimeout(() => {
+            if (!this.running) return;
+            requestAnimationFrame(() => this.mainLoop());
+        }, delay);
     }
 
     loadROM(romBytes) {

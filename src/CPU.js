@@ -1,10 +1,13 @@
 import Flags from "./Flags.js";
 import ALU from "./ALU.js";
+import IRQ from "./IRQ.js";
 
 // Processador (CPU - Central Processing Unit)
 export default class CPU {
-    constructor(MMU) {
-        this.MMU = MMU;
+    constructor(bus, interrupts) {
+        this.bus = bus;
+        this.interrupts = interrupts;
+
         this.flags = new Flags();
         this.ALU = new ALU(this.flags);
         
@@ -19,10 +22,10 @@ export default class CPU {
         this.PC = 0x0100; // Program Counter
         this.SP = 0xFFFE; // Stack Pointer
         this.cycle = 0;
-        this.halted = false;
-        this.haltBug = false;
-        this.IME = false; // Interrupt Master Enable
-        this.pendingIE = false; // Interrupt Enable Register
+        this.halted = 0;
+        this.haltBug = 0;
+        this.IME = 0; // Interrupt Master Enable
+        this.IMEDelay = 0; // Delay para habilitar IME após EI
     }
 
     get F() {
@@ -65,28 +68,25 @@ export default class CPU {
         
         this.serviceInterrupts();
 
-        if (this.cycle !== start) return false;
+        if (this.cycle !== start) return 0;
 
         if (this.halted) {
-            const IE = this.MMU.readByte(0xFFFF);
-            const IF = this.MMU.readByte(0xFF0F);
-
-            if ((IE & IF) !== 0) {
-                this.halted = false;
+            if (this.interrupts.pending() !== 0) {
+                this.halted = 0;
             } else {
                 this.cycle += 4;
-                return false;
+                return 0;
             }
         } else {
             this.executeOpcode();
         }
 
-        if (this.pendingIE) {
-            this.IME = true;
-            this.pendingIE = false;
+        if (this.IMEDelay > 0) {
+            this.IMEDelay--;
+            if (this.IMEDelay === 0) this.IME = 1;
         }
 
-        return false;
+        return 0;
     }
 
     executeOpcode() {
@@ -101,7 +101,7 @@ export default class CPU {
                 this.cycle += 12;
                 break;
             case 0x02: // LD (BC), A - Carrega o valor do A no endereço apontado por BC
-                this.MMU.writeByte(this.BC, this.A);
+                this.bus.writeByte(this.BC, this.A);
                 this.cycle += 8;
                 break;
             case 0x03: // INC BC - Incrementa o valor de BC
@@ -133,7 +133,7 @@ export default class CPU {
                 this.cycle += 8;
                 break;
             case 0x0A: // LD A, (BC) - Carrega o valor no endereço apontado por BC no A
-                this.A = this.MMU.readByte(this.BC);
+                this.A = this.bus.readByte(this.BC);
                 this.cycle += 8;
                 break;
             case 0x0B: // DEC BC - Decrementa o valor de BC
@@ -158,7 +158,7 @@ export default class CPU {
                 break;
             case 0x10: // STOP - Para a execução da CPU
                 this.fetchByte();
-                this.MMU.writeByte(0xFF4D, 0); // Reset o registro de parada
+                this.bus.writeByte(0xFF4D, 0); // Reset o registro de parada
                 this.cycle += 4;
                 break;
             case 0x11: // LD DE, d16 - Carrega o valor de 16 bits no DE
@@ -166,7 +166,7 @@ export default class CPU {
                 this.cycle += 12;
                 break;
             case 0x12: // LD (DE), A - Carrega o valor do A no endereço apontado por DE
-                this.MMU.writeByte(this.DE, this.A);
+                this.bus.writeByte(this.DE, this.A);
                 this.cycle += 8;
                 break;
             case 0x13: // INC DE - Incrementa o valor de DE
@@ -197,7 +197,7 @@ export default class CPU {
                 this.cycle += 8;
                 break;
             case 0x1A: // LD A, (DE) - Carrega o valor no endereço apontado por DE no A
-                this.A = this.MMU.readByte(this.DE);
+                this.A = this.bus.readByte(this.DE);
                 this.cycle += 8;
                 break;
             case 0x1B: // DEC DE - Decrementa o valor de DE
@@ -228,7 +228,7 @@ export default class CPU {
                 this.cycle += 12;
                 break;
             case 0x22: // LD (HL+), A - Carrega o valor do A no endereço apontado por HL e incrementa HL
-                this.MMU.writeByte(this.HL, this.A);
+                this.bus.writeByte(this.HL, this.A);
                 this.HL = this.ALU.INC_16(this.HL);
                 this.cycle += 8;
                 break;
@@ -260,7 +260,7 @@ export default class CPU {
                 this.cycle += 8;
                 break;
             case 0x2A: // LD A, (HL+) - Carrega o valor no endereço apontado por HL no A e incrementa HL
-                this.A = this.MMU.readByte(this.HL);
+                this.A = this.bus.readByte(this.HL);
                 this.HL = this.ALU.INC_16(this.HL);
                 this.cycle += 8;
                 break;
@@ -294,7 +294,7 @@ export default class CPU {
                 this.cycle += 12;
                 break;
             case 0x32: // LD (HL-), A - Carrega o valor do A no endereço apontado por HL e decrementa HL
-                this.MMU.writeByte(this.HL, this.A);
+                this.bus.writeByte(this.HL, this.A);
                 this.HL = this.ALU.DEC_16(this.HL);
                 this.cycle += 8;
                 break;
@@ -304,22 +304,22 @@ export default class CPU {
                 break;
             case 0x34: // INC (HL) - Incrementa o valor no endereço apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.INC_8(value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 12;
                 }
                 break;
             case 0x35: // DEC (HL) - Decrementa o valor no endereço apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.DEC_8(value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 12;
                 }
                 break;
             case 0x36: // LD (HL), d8 - Carrega o valor de 8 bits no endereço apontado por HL
-                this.MMU.writeByte(this.HL, this.fetchByte());
+                this.bus.writeByte(this.HL, this.fetchByte());
                 this.cycle += 12;
                 break;
             case 0x37: // SCF - Seta a flag Carry
@@ -336,7 +336,7 @@ export default class CPU {
                 this.cycle += 8;
                 break;
             case 0x3A: // LD A, (HL-) - Carrega o valor no endereço apontado por HL no A e decrementa HL
-                this.A = this.MMU.readByte(this.HL);
+                this.A = this.bus.readByte(this.HL);
                 this.HL = this.ALU.DEC_16(this.HL);
                 this.cycle += 8;
                 break;
@@ -387,7 +387,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0x46: // LD B, (HL) - Carrega o valor no endereço apontado por HL no B
-                this.B = this.MMU.readByte(this.HL);
+                this.B = this.bus.readByte(this.HL);
                 this.cycle += 8;
                 break;
             case 0x47: // LD B, A - Carrega o valor do A no B
@@ -419,7 +419,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0x4E: // LD C, (HL) - Carrega o valor no endereço apontado por HL no C
-                this.C = this.MMU.readByte(this.HL);
+                this.C = this.bus.readByte(this.HL);
                 this.cycle += 8;
                 break;
             case 0x4F: // LD C, A - Carrega o valor do A no C
@@ -451,7 +451,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0x56: // LD D, (HL) - Carrega o valor no endereço apontado por HL no D
-                this.D = this.MMU.readByte(this.HL);
+                this.D = this.bus.readByte(this.HL);
                 this.cycle += 8;
                 break;
             case 0x57: // LD D, A - Carrega o valor do A no D
@@ -483,7 +483,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0x5E: // LD E, (HL) - Carrega o valor no endereço apontado por HL no E
-                this.E = this.MMU.readByte(this.HL);
+                this.E = this.bus.readByte(this.HL);
                 this.cycle += 8;
                 break;
             case 0x5F: // LD E, A - Carrega o valor do A no E
@@ -515,7 +515,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0x66: // LD H, (HL) - Carrega o valor no endereço apontado por HL no H
-                this.H = this.MMU.readByte(this.HL);
+                this.H = this.bus.readByte(this.HL);
                 this.cycle += 8;
                 break;
             case 0x67: // LD H, A - Carrega o valor do A no H
@@ -547,7 +547,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0x6E: // LD L, (HL) - Carrega o valor no endereço apontado por HL no L
-                this.L = this.MMU.readByte(this.HL);
+                this.L = this.bus.readByte(this.HL);
                 this.cycle += 8;
                 break;
             case 0x6F: // LD L, A - Carrega o valor do A no L
@@ -555,34 +555,32 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0x70: // LD (HL), B - Armazena o valor do B no endereço apontado por HL
-                this.MMU.writeByte(this.HL, this.B);
+                this.bus.writeByte(this.HL, this.B);
                 this.cycle += 8;
                 break;
             case 0x71: // LD (HL), C - Armazena o valor do C no endereço apontado por HL
-                this.MMU.writeByte(this.HL, this.C);
+                this.bus.writeByte(this.HL, this.C);
                 this.cycle += 8;
                 break;
             case 0x72: // LD (HL), D - Armazena o valor do D no endereço apontado por HL
-                this.MMU.writeByte(this.HL, this.D);
+                this.bus.writeByte(this.HL, this.D);
                 this.cycle += 8;
                 break;
             case 0x73: // LD (HL), E - Armazena o valor do E no endereço apontado por HL
-                this.MMU.writeByte(this.HL, this.E);
+                this.bus.writeByte(this.HL, this.E);
                 this.cycle += 8;
                 break;
             case 0x74: // LD (HL), H - Armazena o valor do H no endereço apontado por HL
-                this.MMU.writeByte(this.HL, this.H);
+                this.bus.writeByte(this.HL, this.H);
                 this.cycle += 8;
                 break;
             case 0x75: // LD (HL), L - Armazena o valor do L no endereço apontado por HL
-                this.MMU.writeByte(this.HL, this.L);
+                this.bus.writeByte(this.HL, this.L);
                 this.cycle += 8;
                 break;
             case 0x76: // HALT - Para a execução da CPU
                 {
-                    const IE = this.MMU.readByte(0xFFFF);
-                    const IF = this.MMU.readByte(0xFF0F);
-                    const pending = IE & IF & 0x1F;
+                    const pending = this.interrupts.pending();
                     if (this.IME) {
                         this.halted = true;
                     } else {
@@ -593,7 +591,7 @@ export default class CPU {
                 }
                 break;
             case 0x77: // LD (HL), A - Armazena o valor do A no endereço apontado por HL
-                this.MMU.writeByte(this.HL, this.A);
+                this.bus.writeByte(this.HL, this.A);
                 this.cycle += 8;
                 break;
             case 0x78: // LD A, B - Carrega o valor do B no A
@@ -621,7 +619,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0x7E: // LD A, (HL) - Carrega o valor no endereço apontado por HL no A
-                this.A = this.MMU.readByte(this.HL);
+                this.A = this.bus.readByte(this.HL);
                 this.cycle += 8;
                 break;
             case 0x7F: // LD A, A - Carrega o valor do A no A
@@ -653,7 +651,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0x86: // ADD A, (HL) - Adiciona o valor no endereço apontado por HL ao A
-                this.A = this.ALU.ADD_8(this.A, this.MMU.readByte(this.HL));
+                this.A = this.ALU.ADD_8(this.A, this.bus.readByte(this.HL));
                 this.cycle += 8;
                 break;
             case 0x87: // ADD A, A - Adiciona o valor do A ao A
@@ -685,7 +683,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0x8E: // ADC A, (HL) - Adiciona o valor no endereço apontado por HL ao A com carry
-                this.A = this.ALU.ADC_8(this.A, this.MMU.readByte(this.HL), this.flags.C);
+                this.A = this.ALU.ADC_8(this.A, this.bus.readByte(this.HL), this.flags.C);
                 this.cycle += 8;
                 break;
             case 0x8F: // ADC A, A - Adiciona o valor do A ao A com carry
@@ -717,7 +715,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0x96: // SUB (HL) - Subtrai o valor no endereço apontado por HL do A
-                this.A = this.ALU.SUB_8(this.A, this.MMU.readByte(this.HL));
+                this.A = this.ALU.SUB_8(this.A, this.bus.readByte(this.HL));
                 this.cycle += 8;
                 break;
             case 0x97: // SUB A - Subtrai o valor do A do A
@@ -749,7 +747,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0x9E: // SBC (HL) - Subtrai o valor no endereço apontado por HL do A com carry
-                this.A = this.ALU.SBC_8(this.A, this.MMU.readByte(this.HL), this.flags.C);
+                this.A = this.ALU.SBC_8(this.A, this.bus.readByte(this.HL), this.flags.C);
                 this.cycle += 8;
                 break;
             case 0x9F: // SBC A, A - Subtrai o valor do A do A com carry
@@ -781,7 +779,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0xA6: // AND (HL) - Faz um AND do A com o valor no endereço apontado por HL
-                this.A = this.ALU.AND_8(this.A, this.MMU.readByte(this.HL));
+                this.A = this.ALU.AND_8(this.A, this.bus.readByte(this.HL));
                 this.cycle += 8;
                 break;
             case 0xA7: // AND A - Faz um AND do A com ele mesmo
@@ -813,7 +811,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0xAE: // XOR (HL) - Faz um XOR do A com o valor no endereço apontado por HL
-                this.A = this.ALU.XOR_8(this.A, this.MMU.readByte(this.HL));
+                this.A = this.ALU.XOR_8(this.A, this.bus.readByte(this.HL));
                 this.cycle += 8;
                 break;
             case 0xAF: // XOR A - Faz um XOR do A com ele mesmo
@@ -845,7 +843,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0xB6: // OR (HL) - Faz um OR do A com o valor no endereço apontado por HL
-                this.A = this.ALU.OR_8(this.A, this.MMU.readByte(this.HL));
+                this.A = this.ALU.OR_8(this.A, this.bus.readByte(this.HL));
                 this.cycle += 8;
                 break;
             case 0xB7: // OR A - Faz um OR do A com ele mesmo
@@ -877,7 +875,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0xBE: // CP (HL) - Compara o A com o valor no endereço apontado por HL
-                this.ALU.SUB_8(this.A, this.MMU.readByte(this.HL));
+                this.ALU.SUB_8(this.A, this.bus.readByte(this.HL));
                 this.cycle += 8;
                 break;
             case 0xBF: // CP A - Compara o A com ele mesmo
@@ -1101,7 +1099,7 @@ export default class CPU {
                 this.cycle += 16;
                 break;
             case 0xE0: // LDH (a8), A - Armazena o valor do A no endereço 0xFF00 + valor de 8 bits
-                this.MMU.writeByte(0xFF00 + this.fetchByte(), this.A);
+                this.bus.writeByte(0xFF00 + this.fetchByte(), this.A);
                 this.cycle += 12;
                 break;
             case 0xE1: // POP HL - Desempilha o valor de HL
@@ -1113,7 +1111,7 @@ export default class CPU {
                 }
                 break;
             case 0xE2: // LD (C), A - Armazena o valor do A no endereço 0xFF00 + valor do C
-                this.MMU.writeByte(0xFF00 + this.C, this.A);
+                this.bus.writeByte(0xFF00 + this.C, this.A);
                 this.cycle += 8;
                 break;
             case 0xE3: // Não implementado
@@ -1146,7 +1144,7 @@ export default class CPU {
                 this.cycle += 4;
                 break;
             case 0xEA: // LD (a16), A - Armazena o valor do A no endereço de 16 bits
-                this.MMU.writeByte(this.fetchWord(), this.A);
+                this.bus.writeByte(this.fetchWord(), this.A);
                 this.cycle += 16;
                 break;
             case 0xEB: // Não implementado
@@ -1171,7 +1169,7 @@ export default class CPU {
                 this.cycle += 16;
                 break;
             case 0xF0: // LDH A, (a8) - Carrega o valor no endereço 0xFF00 + valor de 8 bits no A
-                this.A = this.MMU.readByte(0xFF00 + this.fetchByte());
+                this.A = this.bus.readByte(0xFF00 + this.fetchByte());
                 this.cycle += 12;
                 break;
             case 0xF1: // POP AF - Desempilha o valor de AF
@@ -1183,12 +1181,12 @@ export default class CPU {
                 }
                 break;
             case 0xF2: // LD A, (C) - Carrega o valor no endereço 0xFF00 + valor do C no A
-                this.A = this.MMU.readByte(0xFF00 + this.C);
+                this.A = this.bus.readByte(0xFF00 + this.C);
                 this.cycle += 8;
                 break;
             case 0xF3: // DI - Desabilita as interrupções
                 this.IME = false;
-                this.pendingIE = false;
+                this.imeDelay = 0;
                 this.cycle += 4;
                 break;
             case 0xF4: // Não implementado
@@ -1217,11 +1215,11 @@ export default class CPU {
                 this.cycle += 8;
                 break;
             case 0xFA: // LD A, (a16) - Carrega o valor no endereço de 16 bits no A
-                this.A = this.MMU.readByte(this.fetchWord());
+                this.A = this.bus.readByte(this.fetchWord());
                 this.cycle += 16;
                 break;
             case 0xFB: // EI - Habilita as interrupções
-                this.pendingIE = true;
+                this.IMEDelay = 1;
                 this.cycle += 4;
                 break;
             case 0xFC: // Não implementado
@@ -1278,9 +1276,9 @@ export default class CPU {
                 break;
             case 0x06: // RLC (HL) - Rotaciona o valor no endereço apontado por HL para a esquerda
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.RLC(value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -1314,9 +1312,9 @@ export default class CPU {
                 break;
             case 0x0E: // RRC (HL) - Rotaciona o valor no endereço apontado por HL para a direita
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.RRC(value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -1350,9 +1348,9 @@ export default class CPU {
                 break;
             case 0x16: // RL (HL) - Rotaciona o valor no endereço apontado por HL para a esquerda através do carry
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.RL(value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -1386,9 +1384,9 @@ export default class CPU {
                 break;
             case 0x1E: // RR (HL) - Rotaciona o valor no endereço apontado por HL para a direita através do carry
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.RR(value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -1422,9 +1420,9 @@ export default class CPU {
                 break;
             case 0x26: // SLA (HL) - Shift left arithmetic no valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.SLA(value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -1458,9 +1456,9 @@ export default class CPU {
                 break;
             case 0x2E: // SRA (HL) - Shift right arithmetic no valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.SRA(value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -1494,9 +1492,9 @@ export default class CPU {
                 break;
             case 0x36: // SWAP (HL) - Troca os nibbles alto e baixo do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.SWAP(value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -1530,9 +1528,9 @@ export default class CPU {
                 break;
             case 0x3E: // SRL (HL) - Shift right lógico no valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.SRL(value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -1566,7 +1564,7 @@ export default class CPU {
                 break;
             case 0x46: // BIT 0, (HL) - Testa o bit 0 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     this.ALU.BIT(0, value);
                     this.cycle += 12;
                 }
@@ -1601,7 +1599,7 @@ export default class CPU {
                 break;
             case 0x4E: // BIT 1, (HL) - Testa o bit 1 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     this.ALU.BIT(1, value);
                     this.cycle += 12;
                 }
@@ -1636,7 +1634,7 @@ export default class CPU {
                 break;
             case 0x56: // BIT 2, (HL) - Testa o bit 2 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     this.ALU.BIT(2, value);
                     this.cycle += 12;
                 }
@@ -1671,7 +1669,7 @@ export default class CPU {
                 break;
             case 0x5E: // BIT 3, (HL) - Testa o bit 3 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     this.ALU.BIT(3, value);
                     this.cycle += 12;
                 }
@@ -1706,7 +1704,7 @@ export default class CPU {
                 break;
             case 0x66: // BIT 4, (HL) - Testa o bit 4 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     this.ALU.BIT(4, value);
                     this.cycle += 12;
                 }
@@ -1741,7 +1739,7 @@ export default class CPU {
                 break;
             case 0x6E: // BIT 5, (HL) - Testa o bit 5 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     this.ALU.BIT(5, value);
                     this.cycle += 12;
                 }
@@ -1776,7 +1774,7 @@ export default class CPU {
                 break;
             case 0x76: // BIT 6, (HL) - Testa o bit 6 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     this.ALU.BIT(6, value);
                     this.cycle += 12;
                 }
@@ -1811,7 +1809,7 @@ export default class CPU {
                 break;
             case 0x7E: // BIT 7, (HL) - Testa o bit 7 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     this.ALU.BIT(7, value);
                     this.cycle += 12;
                 }
@@ -1846,9 +1844,9 @@ export default class CPU {
                 break;
             case 0x86: // RES 0, (HL) - Reseta o bit 0 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.RES(0, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -1882,9 +1880,9 @@ export default class CPU {
                 break;
             case 0x8E: // RES 1, (HL) - Reseta o bit 1 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.RES(1, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -1918,9 +1916,9 @@ export default class CPU {
                 break;
             case 0x96: // RES 2, (HL) - Reseta o bit 2 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.RES(2, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -1954,9 +1952,9 @@ export default class CPU {
                 break;
             case 0x9E: // RES 3, (HL) - Reseta o bit 3 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.RES(3, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -1990,9 +1988,9 @@ export default class CPU {
                 break;
             case 0xA6: // RES 4, (HL) - Reseta o bit 4 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.RES(4, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -2026,9 +2024,9 @@ export default class CPU {
                 break;
             case 0xAE: // RES 5, (HL) - Reseta o bit 5 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.RES(5, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -2062,9 +2060,9 @@ export default class CPU {
                 break;
             case 0xB6: // RES 6, (HL) - Reseta o bit 6 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.RES(6, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -2098,9 +2096,9 @@ export default class CPU {
                 break;
             case 0xBE: // RES 7, (HL) - Reseta o bit 7 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.RES(7, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -2134,9 +2132,9 @@ export default class CPU {
                 break;
             case 0xC6: // SET 0, (HL) - Seta o bit 0 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.SET(0, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -2170,9 +2168,9 @@ export default class CPU {
                 break;
             case 0xCE: // SET 1, (HL) - Seta o bit 1 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.SET(1, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -2206,9 +2204,9 @@ export default class CPU {
                 break;
             case 0xD6: // SET 2, (HL) - Seta o bit 2 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.SET(2, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -2242,9 +2240,9 @@ export default class CPU {
                 break;
             case 0xDE: // SET 3, (HL) - Seta o bit 3 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.SET(3, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -2278,9 +2276,9 @@ export default class CPU {
                 break;
             case 0xE6: // SET 4, (HL) - Seta o bit 4 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.SET(4, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -2314,9 +2312,9 @@ export default class CPU {
                 break;
             case 0xEE: // SET 5, (HL) - Seta o bit 5 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.SET(5, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -2350,9 +2348,9 @@ export default class CPU {
                 break;
             case 0xF6: // SET 6, (HL) - Seta o bit 6 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.SET(6, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -2386,9 +2384,9 @@ export default class CPU {
                 break;
             case 0xFE: // SET 7, (HL) - Seta o bit 7 do valor apontado por HL
                 {
-                    const value = this.MMU.readByte(this.HL);
+                    const value = this.bus.readByte(this.HL);
                     const result = this.ALU.SET(7, value);
-                    this.MMU.writeByte(this.HL, result);
+                    this.bus.writeByte(this.HL, result);
                     this.cycle += 16;
                 }
                 break;
@@ -2403,8 +2401,8 @@ export default class CPU {
     }
 
     POP() {
-        const low = this.MMU.readByte(this.SP);
-        const high = this.MMU.readByte((this.SP + 1) & 0xFFFF);
+        const low = this.bus.readByte(this.SP);
+        const high = this.bus.readByte((this.SP + 1) & 0xFFFF);
         this.SP = (this.SP + 2) & 0xFFFF;
         return (high << 8) | low;
     }
@@ -2413,37 +2411,13 @@ export default class CPU {
         word &= 0xFFFF;
 
         this.SP = (this.SP - 1) & 0xFFFF;
-        this.MMU.writeByte(this.SP, (word >> 8) & 0xFF);
+        this.bus.writeByte(this.SP, (word >> 8) & 0xFF);
         this.SP = (this.SP - 1) & 0xFFFF;
-        this.MMU.writeByte(this.SP, word & 0xFF);
-    }
-
-    serviceInterrupts() {
-        const IE = this.MMU.readByte(0xFFFF);
-        const IF = this.MMU.readByte(0xFF0F);
-        const pending = IE & IF & 0x1F;
-
-        if (pending === 0) return;
-        if (this.halted) this.halted = false;
-        if (!this.IME) return;
-
-        this.IME = false;
-        this.PUSH(this.PC);
-
-        const vectors = [0x40, 0x48, 0x50, 0x58, 0x60]; // VBlank, LCD, Timer, Serial, Joypad
-        for (let index = 0; index < 5; index++) {
-            if (pending & (1 << index)) {
-                const newIF = IF & ~(1 << index);
-                this.MMU.writeByte(0xFF0F, newIF);
-                this.PC = vectors[index];
-                this.cycle += 20;
-                break;
-            }
-        }
+        this.bus.writeByte(this.SP, word & 0xFF);
     }
 
     fetchByte() {
-        const byte = this.MMU.readByte(this.PC);
+        const byte = this.bus.readByte(this.PC);
         if (this.haltBug) this.haltBug = false;
         else this.PC = (this.PC + 1) & 0xFFFF;
         return byte;
@@ -2460,8 +2434,31 @@ export default class CPU {
         address &= 0xFFFF;
         word &= 0xFFFF;
 
-        this.MMU.writeByte(address, word & 0xFF);
-        this.MMU.writeByte((address + 1) & 0xFFFF, (word >> 8) & 0xFF);
+        this.bus.writeByte(address, word & 0xFF);
+        this.bus.writeByte((address + 1) & 0xFFFF, (word >> 8) & 0xFF);
+    }
+
+    serviceInterrupts() {
+        if (!this.IME) return;
+
+        const pending = this.interrupts.pending();
+        if ((pending & 0x1F) === 0) return;
+
+        let mask = 0;
+        let vector = 0;
+        if (pending & 0x01) { mask = IRQ.VBLANK; vector = 0x40; }
+        else if (pending & 0x02) { mask = IRQ.LCDSTAT; vector = 0x48; }
+        else if (pending & 0x04) { mask = IRQ.TIMER; vector = 0x50; }
+        else if (pending & 0x08) { mask = IRQ.SERIAL; vector = 0x58; }
+        else if (pending & 0x10) { mask = IRQ.JOYPAD; vector = 0x60; }
+        else return;
+
+        this.cycle += 20;
+        this.IME = 0;
+        this.halted = 0;
+        this.interrupts.acknowledge(mask);
+        this.PUSH(this.PC);
+        this.PC = vector;
     }
 
     jumpRelative(condition, expected) {

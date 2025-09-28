@@ -1,3 +1,19 @@
+import IRQ from "./IRQ.js";
+
+const STAT_SRC = Object.freeze({
+    HBLANK: 0x08,
+    VBLANK: 0x10,
+    OAM: 0x20,
+    LYC: 0x40
+});
+
+const MODES = Object.freeze({
+    HBLANK: 0x00,
+    VBLANK: 0x01,
+    OAM: 0x02,
+    VRAM: 0x03
+});
+
 // Gráficos (PPU - Picture Processing Unit)
 export default class PPU {
     constructor(VRAM, OAM, requestInterrupt) {
@@ -18,7 +34,7 @@ export default class PPU {
         this.WX = 0x00; // Window X Position (FF4B) 
 
         this.cycle = 0;
-        this.mode = 0x02; // 0=HBlank, 1=VBlank, 2=Searching OAM, 3=Transferring Data to LCD;
+        this.mode = MODES.OAM;
         this.requestInterrupt = requestInterrupt;
 
         this.frame = new Uint32Array(160 * 144); // Tela de 160x144 pixels (ARGB 32-bit)
@@ -28,17 +44,17 @@ export default class PPU {
     readByte(address) {
         address &= 0xFFFF;
 
-        if (address >= 0x8000 && address <= 0x9FFF) {
-            return this.VRAM.readByte(address - 0x8000);
+        if (address <= 0x1FFF) {
+            return this.VRAM.readByte(address) & 0xFF;
         }
 
-        if (address >= 0xFE00 && address <= 0xFE9F) {
-            return this.OAM.readByte(address - 0xFE00);
+        if (address <= 0x009F) {
+            return this.OAM.readByte(address) & 0xFF;
         }
 
         switch(address) {
             case 0xFF40: return this.LCDC;
-            case 0xFF41: return (this.STAT & 0xFC) | (this.mode & 0x03);
+            case 0xFF41: return (this.STAT & 0xFC) | (this.mode & MODES.VRAM);
             case 0xFF42: return this.SCY;
             case 0xFF43: return this.SCX;
             case 0xFF44: return this.LY;
@@ -57,13 +73,13 @@ export default class PPU {
         address &= 0xFFFF;
         value &= 0xFF;
 
-        if (address >= 0x8000 && address <= 0x9FFF) {
-            this.VRAM.writeByte(address - 0x8000, value);
+        if (address <= 0x1FFF) {
+            this.VRAM.writeByte(address, value);
             return;
         }
 
-        if (address >= 0xFE00 && address <= 0xFE9F) {
-            this.OAM.writeByte(address - 0xFE00, value);
+        if (address <= 0x009F) {
+            this.OAM.writeByte(address, value);
             return;
         }
 
@@ -110,7 +126,7 @@ export default class PPU {
     tick(cycles) {
         if ((this.LCDC & 0x80) === 0) {
             this.LY = 0;
-            this.mode = 0x00;
+            this.mode = MODES.HBLANK;
             this.cycle = 0;
             return;
         }
@@ -122,26 +138,26 @@ export default class PPU {
 
             if (this.LY < 144) {
                 this.renderScanline(this.LY);
-                this.mode = 0x00; // HBlank
-                if (this.STAT & 0x08) this.requestInterrupt(0x02);
+                this.mode = MODES.HBLANK;
+                if (this.STAT & STAT_SRC.HBLANK) this.requestInterrupt(IRQ.LCDSTAT);
             }
 
             this.LY++;
 
             if (this.LY === 144) {
-                this.mode = 0x01; // VBlank
-                this.requestInterrupt(0x01);
-                if (this.STAT & 0x10) this.requestInterrupt(0x02);
+                this.mode = MODES.VBLANK;
+                this.requestInterrupt(IRQ.VBLANK);
+                if (this.STAT & STAT_SRC.VBLANK) this.requestInterrupt(IRQ.LCDSTAT);
                 if (this.onFrame) this.onFrame(this.frame);
             } else if (this.LY > 153) {
                 this.LY = 0;
-                this.mode = 0x02; // Searching OAM
-                if (this.STAT & 0x20) this.requestInterrupt(0x02);
+                this.mode = MODES.OAM; // Searching OAM
+                if (this.STAT & STAT_SRC.OAM) this.requestInterrupt(IRQ.LCDSTAT);
             }
 
             if (this.LY === this.LYC) {
                 this.STAT |= 0x04;
-                if (this.STAT & 0x40) this.requestInterrupt(0x02);
+                if (this.STAT & STAT_SRC.LYC) this.requestInterrupt(IRQ.LCDSTAT);
             } else {
                 this.STAT &= ~0x04;
             }
@@ -157,8 +173,9 @@ export default class PPU {
 
         const scy = this.SCY;
         const scx = this.SCX;
-        const bgMapBase = (this.LCDC & 0x08) ? 0x9C00 : 0x9800;
+        const bgMapBaseVRAM = (this.LCDC & 0x08) ? 0x1C00 : 0x1800;
         const tileBaseUnsigned = (this.LCDC & 0x10) !== 0;
+        const tileBaseVRAM = tileBaseUnsigned ? 0x0000 : 0x0800;
         const lineY = (line + scy) & 0xFF;
         const tileRow = (lineY >> 3) & 0x1F;
         const pixelYInTile = lineY & 0x07;
@@ -167,21 +184,24 @@ export default class PPU {
             const lineX = (x + scx) & 0xFF;
             const tileCol = (lineX >> 3) & 0x1F;
             const mapIndex = tileRow * 32 + tileCol;
-            const tileNumber = this.readByte(bgMapBase + mapIndex);
-            let tileAddress;
+            const tileNumber = this.readByte(bgMapBaseVRAM + mapIndex);
+
+            let tileAddressVRAM;
             if (tileBaseUnsigned) {
-                tileAddress = 0x8000 + (tileNumber * 16);
+                tileAddressVRAM = tileNumber * 16;
             } else {
                 const signedIndex = (tileNumber << 24) >> 24; // Sign extend
-                tileAddress = 0x8800 + ((signedIndex + 128) * 16);
+                tileAddressVRAM = (signedIndex + 128) * 16;
             }
 
-            const low = this.readByte(tileAddress + (pixelYInTile * 2));
-            const high = this.readByte(tileAddress + (pixelYInTile * 2) + 1);
+            const low = this.readByte(tileAddressVRAM + (pixelYInTile * 2));
+            const high = this.readByte(tileAddressVRAM + (pixelYInTile * 2) + 1);
+
             const bit = 7 - (lineX & 0x07);
             const colorId = ((high >> bit) & 0x01) << 1 | ((low >> bit) & 0x01);
             const shade = (this.BGP >> (colorId * 2)) & 0x03;
             const rgb = this.shadeToRGBA(shade);
+
             this.frame[line * 160 + x] = rgb;
         }
     }
