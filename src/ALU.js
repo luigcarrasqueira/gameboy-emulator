@@ -20,7 +20,7 @@ export default class ALU {
         return value ? 1 : 0;
     }
 
-    ADD_8(a, b) { // soma A com B e carry opcional
+    ADD(a, b) { // soma A com B e carry opcional
         a = uint8(a);
         b = uint8(b);
 
@@ -34,7 +34,7 @@ export default class ALU {
         return result;
     }
 
-    ADC_8(a, b, carry = 0) { // soma A com B e carry opcional
+    ADC(a, b, carry = 0) { // soma A com B e carry opcional
         a = uint8(a);
         b = uint8(b);
         carry = bool(carry);
@@ -49,7 +49,7 @@ export default class ALU {
         return result;
     }
 
-    SUB_8(a, b) { // subtrai B de A
+    SUB(a, b) { // subtrai B de A
         a = uint8(a);
         b = uint8(b);
 
@@ -63,7 +63,7 @@ export default class ALU {
         return result;
     }
 
-    SBC_8(a, b, carry = 0) { // subtrai B de A com carry opcional
+    SBC(a, b, carry = 0) { // subtrai B de A com carry opcional
         a = uint8(a);
         b = uint8(b);
         carry = bool(carry);
@@ -78,7 +78,7 @@ export default class ALU {
         return result;
     }
 
-    AND_8(a, b) { // operação AND entre A e B
+    AND(a, b) { // operação AND entre A e B
         a = uint8(a);
         b = uint8(b);
 
@@ -92,7 +92,7 @@ export default class ALU {
         return result;
     }
 
-    OR_8(a, b) { // operação OR entre A e B
+    OR(a, b) { // operação OR entre A e B
         a = uint8(a);
         b = uint8(b);
 
@@ -106,7 +106,7 @@ export default class ALU {
         return result;
     }
 
-    XOR_8(a, b) { // operação XOR entre A e B
+    XOR(a, b) { // operação XOR entre A e B
         a = uint8(a);
         b = uint8(b);
 
@@ -120,7 +120,7 @@ export default class ALU {
         return result;
     }
 
-    INC_8(a) { // incrementa A
+    INC(a) { // incrementa A
         a = uint8(a);
 
         const result = uint8(a + 1);
@@ -132,7 +132,7 @@ export default class ALU {
         return result;
     }
 
-    DEC_8(a) { // decrementa A
+    DEC(a) { // decrementa A
         a = uint8(a);
 
         const result = uint8(a - 1);

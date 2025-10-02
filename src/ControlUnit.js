@@ -2,6 +2,7 @@ import InterruptsController from "./InterruptsController.js";
 import OpcodeDecoder from "./OpcodeDecoder.js";
 import FlagsRegister from "./FlagsRegister.js";
 import Registers from "./Registers.js";
+import Sequencer from "./Sequencer.js";
 import ALU from "./ALU.js";
 import IRQ from "./IRQ.js";
 
@@ -15,6 +16,7 @@ export default class ControlUnit {
         this.registers  = new Registers(this.flags);
         this.ALU        = new ALU(this.flags);
         this.decoder    = new OpcodeDecoder(this);
+        this.sequencer  = new Sequencer(this);
 
         this.cycle = 0;
         this.halted = 0;
@@ -28,7 +30,7 @@ export default class ControlUnit {
         
         this.serviceInterrupts();
 
-        if (this.cycle !== start) return 0;
+        if (this.cycle !== start) return;
 
         if (this.halted) {
             if (this.interrupts.pending() !== 0) {
@@ -37,9 +39,13 @@ export default class ControlUnit {
                 this.cycle += 4;
                 return;
             }
-        } else {
+        }
+
+        if (!this.sequencer.busy()) {
             this.decoder.step(this);
         }
+
+        this.sequencer.tick(this);
 
         if (this.IMEDelay > 0) {
             this.IMEDelay--;
@@ -47,42 +53,11 @@ export default class ControlUnit {
         }
     }
 
-    POP() {
-        const low = this.bus.readByte(this.registers.SP);
-        const high = this.bus.readByte((this.registers.SP + 1) & 0xFFFF);
-        this.registers.SP = (this.registers.SP + 2) & 0xFFFF;
-        return (high << 8) | low;
-    }
-
-    PUSH(word) {
-        word &= 0xFFFF;
-
-        this.registers.SP = (this.registers.SP - 1) & 0xFFFF;
-        this.bus.writeByte(this.registers.SP, (word >> 8) & 0xFF);
-        this.registers.SP = (this.registers.SP - 1) & 0xFFFF;
-        this.bus.writeByte(this.registers.SP, word & 0xFF);
-    }
-
     fetchByte() {
         const byte = this.bus.readByte(this.registers.PC);
         if (this.haltBug) this.haltBug = false;
         else this.registers.PC = (this.registers.PC + 1) & 0xFFFF;
         return byte;
-    }
-
-    fetchWord() {
-        const low = this.fetchByte();
-        const high = this.fetchByte();
-
-        return (high << 8) | low;
-    }
-
-    writeWord(address, word) {
-        address &= 0xFFFF;
-        word &= 0xFFFF;
-
-        this.bus.writeByte(address, word & 0xFF);
-        this.bus.writeByte((address + 1) & 0xFFFF, (word >> 8) & 0xFF);
     }
 
     serviceInterrupts() {
@@ -104,18 +79,13 @@ export default class ControlUnit {
         this.IME = 0;
         this.halted = 0;
         this.interrupts.acknowledge(mask);
-        this.PUSH(this.registers.PC);
-        this.registers.PC = vector;
-    }
+        
+        const pc = this.registers.PC;
+        this.registers.SP = (this.registers.SP - 1) & 0xFFFF;
+        this.bus.writeByte(this.registers.SP, (pc >> 8) & 0xFF);
+        this.registers.SP = (this.registers.SP - 1) & 0xFFFF;
+        this.bus.writeByte(this.registers.SP, pc & 0xFF);
 
-    jumpRelative(condition, expected) {
-        const offset = this.fetchByte();
-        const relativeOffset = (offset << 24) >> 24; // sign extend 8 to 32
-        if (condition === expected) {
-            this.registers.PC = (this.registers.PC + relativeOffset) & 0xFFFF;
-            this.cycle += 12;
-        } else {
-            this.cycle += 8;
-        }
+        this.registers.PC = vector;
     }
 }

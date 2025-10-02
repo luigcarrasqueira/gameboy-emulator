@@ -4,19 +4,18 @@ import ControlUnit from "./ControlUnit.js";
 export default class CPU {
     constructor(bus) {
         this.bus = bus;
-        this.controller = new ControlUnit(this.bus);
+        this.control = new ControlUnit(this.bus);
     }
 
-    get cycle() { return this.controller.cycle; }
-    set cycle(value) { this.controller.cycle = value; }
+    get cycle() { return this.control.cycle; }
+    set cycle(value) { this.control.cycle = value; }
 
-    get interrupts() { return this.controller.interrupts; }
-    get registers()  { return this.controller.registers; }
-    get flags()      { return this.controller.flags; }
-    get ALU()        { return this.controller.ALU; }
-    get decoder()    { return this.controller.decoder; }
+    get interrupts() { return this.control.interrupts; }
+    get registers()  { return this.control.registers; }
+    get flags()      { return this.control.flags; }
+    get decoder()    { return this.control.decoder; }
 
     executeInstruction() {
-        this.controller.step();
+        this.control.step();
     }
 }
