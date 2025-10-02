@@ -1,6 +1,6 @@
 import IRQ from "./IRQ.js";
 
-export default class Interrupts {
+export default class InterruptsController {
     constructor() {
         this.IE = 0x00; // Interrupt Enable (0xFFFF)
         this.IF = 0x00; // Interrupt Flag (0xFF0F)

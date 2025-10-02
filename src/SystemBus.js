@@ -1,22 +1,45 @@
-export default class SystemBus {
-    constructor(PPU, timer, DMA, joypad, interrupts) {
-        this.PPU = PPU;
-        this.timer = timer;
-        this.DMA = DMA;
-        this.joypad = joypad;
-        this.interrupts = interrupts;
+import LCD_MODE from "./LCD_MODE.js";
+import DMA from "./DMA.js";
 
-        this.romRead = (address) => 0xFF;
-        this.romWrite = (address, value) => {};
-        this.eramRead = (address) => 0xFF;
-        this.eramWrite = (address, value) => {};
-        this.wramRead = (address) => 0xFF;
-        this.wramWrite = (address, value) => {};
-        this.hramRead = (address) => 0xFF;
-        this.hramWrite = (address, value) => {};
+export default class SystemBus {
+    constructor() {
+        this.DMA = new DMA(
+            address          => this.readByte(address),
+            (address, value) => this.writeByte(address, value)
+        );
+
+        this.LCDC       = null;
+        this.joypad     = null;
+        this.timer      = null;
+        this.interrupts = null;
+
+        this.romRead   = (_address) => 0xFF;
+        this.romWrite  = (_address, _value) => {};
+        this.eramRead  = (_address) => 0xFF;
+        this.eramWrite = (_address, _value) => {};
+        this.wramRead  = (_address) => 0xFF;
+        this.wramWrite = (_address, _value) => {};
+        this.hramRead  = (_address) => 0xFF;
+        this.hramWrite = (_address, _value) => {};
 
         this.bootROM = null; // Uint8Array
         this.bootEnabled = 1; // desabilita ao escrever 0xFF50
+    }
+
+    setLCDC(LCDC) {
+        this.LCDC = LCDC;
+    }
+
+    setJoypad(joypad) {
+        this.joypad = joypad;
+    }
+
+    setTimer(timer) {
+        this.timer = timer;
+    }
+
+    setInterrupts(interrupts) {
+        this.interrupts = interrupts;
     }
 
     attachBootROM(bootROM) {
@@ -49,6 +72,10 @@ export default class SystemBus {
     readByte(address) {
         address &= 0xFFFF;
 
+        if (this.DMA.active && !(address >= 0xFF80 && address <= 0xFFFE) && address !== 0xFF46) {
+            return 0xFF; // Durante o DMA, leituras de HRAM retornam 0xFF
+        }
+
         if (this.bootEnabled && this.bootROM && address < this.bootROM.length && address < 0x100) { // Boot ROM mapeada sobre 0x0000-0x00FF enquanto habilitada
             return this.bootROM[address] & 0xFF;
         }
@@ -57,8 +84,9 @@ export default class SystemBus {
             return this.romRead(address) & 0xFF;
         }
 
-        if (address >= 0x8000 && address <= 0x9FFF) { // 0x8000-0x9FFF VRAM (PPU)
-            return this.PPU.readByte(address - 0x8000) & 0xFF;
+        if (address >= 0x8000 && address <= 0x9FFF) { // 0x8000-0x9FFF VRAM (LCDC)
+            if (this.LCDC.mode === LCD_MODE.VRAM) return 0xFF; // Durante o modo 3 (transferência de dados para LCD), VRAM não pode ser lida
+            return this.LCDC.readByte(address - 0x8000) & 0xFF;
         }
 
         if (address >= 0xA000 && address <= 0xBFFF) { // 0xA000-0xBFFF ERAM (cartucho/MBC)
@@ -73,8 +101,10 @@ export default class SystemBus {
             return this.wramRead(address - 0xE000) & 0xFF;
         }
 
-        if (address >= 0xFE00 && address <= 0xFE9F) { // 0xFE00-0xFE9F OAM (PPU)
-            return this.PPU.readByte(address - 0xFE00) & 0xFF;
+        if (address >= 0xFE00 && address <= 0xFE9F) { // 0xFE00-0xFE9F OAM (LCDC)
+            if (this.LCDC.mode === LCD_MODE.OAM || this.LCDC.mode === LCD_MODE.VRAM) return 0xFF; // Durante os modos 2 e 3, OAM não pode ser lida
+
+            return this.LCDC.readByte(address - 0xFE00) & 0xFF;
         }
 
         if (address === 0xFF00) { // 0xFF00 joypad
@@ -97,12 +127,10 @@ export default class SystemBus {
             return 0xFF;
         }
 
-        if (address >= 0xFF40 && address <= 0xFF4B) { // 0xFF40-0xFF4B PPU
-            return this.PPU.readByte(address) & 0xFF;
-        }
+        if (address >= 0xFF40 && address <= 0xFF4B) { // 0xFF40-0xFF4B LCDC
+            if (address === 0xFF46) return this.DMA.readByte(0xFF46) & 0xFF; // 0xFF46 DMA
 
-        if (address === 0xFF46) { // 0xFF46 DMA
-            return this.DMA.readByte(0xFF46) & 0xFF;
+            return this.LCDC.readByte(address) & 0xFF;
         }
 
         if (address === 0xFF50) { // 0xFF50 Boot ROM disable
@@ -124,13 +152,17 @@ export default class SystemBus {
         address &= 0xFFFF;
         value &= 0xFF;
 
+        if (this.DMA.active && !(address >= 0xFF80 && address <= 0xFFFE) && address !== 0xFF46) {
+            return; // Durante o DMA, escritas de HRAM são permitidas
+        }
+
         if (address <= 0x7FFF) { // 0x0000-0x7FFF ROM (Cartucho/MBC)
             this.romWrite(address, value);
             return;
         }
 
-        if (address >= 0x8000 && address <= 0x9FFF) { // 0x8000-0x9FFF VRAM (PPU)
-            this.PPU.writeByte(address - 0x8000, value);
+        if (address >= 0x8000 && address <= 0x9FFF) { // 0x8000-0x9FFF VRAM (LCDC)
+            this.LCDC.writeByte(address - 0x8000, value);
             return;
         }
 
@@ -149,8 +181,10 @@ export default class SystemBus {
             return;
         }
 
-        if (address >= 0xFE00 && address <= 0xFE9F) { // 0xFE00-0xFE9F OAM (PPU)
-            this.PPU.writeByte(address - 0xFE00, value);
+        if (address >= 0xFE00 && address <= 0xFE9F) { // 0xFE00-0xFE9F OAM (LCDC)
+            if (this.LCDC.mode === LCD_MODE.OAM || this.LCDC.mode === LCD_MODE.VRAM) return; // Durante os modos 2 e 3, OAM não pode ser escrita
+
+            this.LCDC.writeByte(address - 0xFE00, value);
             return;
         }
 
@@ -173,18 +207,18 @@ export default class SystemBus {
             return;
         }
 
-        if (address >= 0xFF40 && address <= 0xFF4B) { // 0xFF40-0xFF4B PPU
-            this.PPU.writeByte(address, value);
-            return;
-        }
+        if (address >= 0xFF40 && address <= 0xFF4B) { // 0xFF40-0xFF4B LCDC
+            if (address === 0xFF46) { // 0xFF46 DMA
+                this.DMA.writeByte(address, value);
+                return;
+            }
 
-        if (address === 0xFF46) { // 0xFF46 DMA
-            this.DMA.writeByte(address, value);
+            this.LCDC.writeByte(address, value);
             return;
         }
 
         if (address === 0xFF50) { // 0xFF50 Boot ROM disable
-            if (value === 1) this.bootEnabled = 0;
+            if (value !== 0) this.bootEnabled = 0;
             return;
         }
 
