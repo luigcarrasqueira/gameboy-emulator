@@ -1,25 +1,24 @@
 export default class Sequencer {
-    constructor(control) {
-        this.control = control;
-        this.queue = [];
+    constructor() {
+        this.mcycleQueue = [];
     }
 
-    enqueue(fn) {
-        this.queue.push(fn);
+    mcycle(fn) {
+        this.mcycleQueue.push(fn);
     }
 
-    tick() {
-        if (this.queue.length === 0) return;
-        const fn = this.queue.shift();
+    tick(control) {
+        if (this.mcycleQueue.length === 0) return;
+        const fn = this.mcycleQueue.shift();
         fn();
-        this.control.cycle += 4;
+        control.cycle += 4;
     }
 
     busy() {
-        return this.queue.length > 0;
+        return this.mcycleQueue.length > 0;
     }
 
     reset() {
-        this.queue.length = 0;
+        this.mcycleQueue.length = 0;
     }
 }

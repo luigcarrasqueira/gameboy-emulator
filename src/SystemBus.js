@@ -1,6 +1,8 @@
 import LCD_MODE from "./LCD_MODE.js";
 import DMA from "./DMA.js";
+import Serial from "./Serial.js";
 
+// Barramento do sistema (System Bus)
 export default class SystemBus {
     constructor() {
         this.DMA = new DMA(
@@ -12,6 +14,7 @@ export default class SystemBus {
         this.joypad     = null;
         this.timer      = null;
         this.interrupts = null;
+        this.serial     = null;
 
         this.romRead   = (_address) => 0xFF;
         this.romWrite  = (_address, _value) => {};
@@ -40,6 +43,7 @@ export default class SystemBus {
 
     setInterrupts(interrupts) {
         this.interrupts = interrupts;
+        this.serial = new Serial(interrupts);
     }
 
     attachBootROM(bootROM) {
@@ -112,7 +116,7 @@ export default class SystemBus {
         }
 
         if (address >= 0xFF01 && address <= 0xFF02) { // 0xFF01-0xFF02 Serial
-            return 0xFF;
+            return this.serial.readByte(address) & 0xFF;
         }
         
         if (address >= 0xFF04 && address <= 0xFF07) { // 0xFF04-0xFF07 Timer
@@ -190,6 +194,11 @@ export default class SystemBus {
 
         if (address === 0xFF00) { // 0xFF00 Joypad
             this.joypad.writeByte(0xFF00, value);
+            return;
+        }
+
+        if (address >= 0xFF01 && address <= 0xFF02) { // 0xFF01-0xFF02 Serial
+            this.serial.writeByte(address, value);
             return;
         }
 

@@ -7,7 +7,7 @@ export default class OpcodeDecoder {
     }
 
     step(control) {
-        control.sequencer.enqueue(() => {
+        control.sequencer.mcycle(() => {
             const opcode = control.fetchByte();
             const fn = this.opcodes[opcode];
 
@@ -21,7 +21,7 @@ export default class OpcodeDecoder {
     }
 
     stepCB(control) {
-        control.sequencer.enqueue(() => {
+        control.sequencer.mcycle(() => {
             const opcode = control.fetchByte();
             const fn = this.cbOpcodes[opcode];
 
@@ -41,22 +41,22 @@ export default class OpcodeDecoder {
         ops[0x01] = control => { // LD BC, d16 - Carrega o valor de 16 bits no BC
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
                 control.registers.BC = (high << 8) | low;
             });
         };
         ops[0x02] = control => { // LD (BC), A - Carrega o valor do A no endereço apontado por BC
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(control.registers.BC, control.registers.A);
             });
         };
         ops[0x03] = control => { // INC BC - Incrementa o valor de BC
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.BC = control.ALU.INC_16(control.registers.BC);
             });
         };
@@ -67,7 +67,7 @@ export default class OpcodeDecoder {
             control.registers.B = control.ALU.DEC(control.registers.B);
         };
         ops[0x06] = control => { // LD B, d8 - Carrega o valor de 8 bits no B
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.B = control.fetchByte();
             });
         };
@@ -79,35 +79,35 @@ export default class OpcodeDecoder {
             let high = 0;
             let address = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 high = control.fetchByte();
             });
             
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 address = (high << 8) | low;
                 control.bus.writeByte(address, control.registers.SP & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte((address + 1) & 0xFFFF, (control.registers.SP >> 8) & 0xFF);
             });
         };
         ops[0x09] = control => { // ADD HL, BC - Adiciona o valor de BC ao HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.HL = control.ALU.ADD_16(control.registers.HL, control.registers.BC);
             });
         };
         ops[0x0A] = control => { // LD A, (BC) - Carrega o valor no endereço apontado por BC no A
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.bus.readByte(control.registers.BC);
             });
         };
         ops[0x0B] = control => { // DEC BC - Decrementa o valor de BC
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.BC = control.ALU.DEC_16(control.registers.BC);
             });
         };
@@ -118,7 +118,7 @@ export default class OpcodeDecoder {
             control.registers.C = control.ALU.DEC(control.registers.C);
         };
         ops[0x0E] = control => { // LD C, d8 - Carrega o valor de 8 bits no C
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.C = control.fetchByte();
             });
         };
@@ -132,22 +132,22 @@ export default class OpcodeDecoder {
         ops[0x11] = control => { // LD DE, d16 - Carrega o valor de 16 bits no DE
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
                 control.registers.DE = (high << 8) | low;
             });
         };
         ops[0x12] = control => { // LD (DE), A - Carrega o valor do A no endereço apontado por DE
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(control.registers.DE, control.registers.A);
             });
         };
         ops[0x13] = control => { // INC DE - Incrementa o valor de DE
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.DE = control.ALU.INC_16(control.registers.DE);
             });
         };
@@ -158,7 +158,7 @@ export default class OpcodeDecoder {
             control.registers.D = control.ALU.DEC(control.registers.D);
         };
         ops[0x16] = control => { // LD D, d8 - Carrega o valor de 8 bits no D
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.D = control.fetchByte();
             });
         };
@@ -168,27 +168,27 @@ export default class OpcodeDecoder {
         ops[0x18] = control => { // JR r8 - Salta para um endereço relativo de 8 bits
             let byte = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 byte = control.fetchByte();
             });
             
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const displacement = (byte << 24) >> 24; // Sign extend 8 to 32
                 control.registers.PC = (control.registers.PC + displacement) & 0xFFFF;
             });
         };
         ops[0x19] = control => { // ADD HL, DE - Adiciona o valor de DE ao HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.HL = control.ALU.ADD_16(control.registers.HL, control.registers.DE);
             });
         };
         ops[0x1A] = control => { // LD A, (DE) - Carrega o valor no endereço apontado por DE no A
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.bus.readByte(control.registers.DE);
             });
         };
         ops[0x1B] = control => { // DEC DE - Decrementa o valor de DE
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.DE = control.ALU.DEC_16(control.registers.DE);
             });
         };
@@ -199,7 +199,7 @@ export default class OpcodeDecoder {
             control.registers.E = control.ALU.DEC(control.registers.E);
         };
         ops[0x1E] = control => { // LD E, d8 - Carrega o valor de 8 bits no E
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.E = control.fetchByte();
             });
         };
@@ -207,11 +207,11 @@ export default class OpcodeDecoder {
             control.registers.A = control.ALU.RRA(control.registers.A);
         };
         ops[0x20] = control => { // JR NZ, r8 - Salta para um endereço relativo de 8 bits se a flag Z não estiver setada            
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const byte = control.fetchByte();
                 
                 if (control.flags.Z === 0) {
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         const displacement = (byte << 24) >> 24; // Sign extend 8 to 32
                         control.registers.PC = (control.registers.PC + displacement) & 0xFFFF;
                     });
@@ -221,23 +221,23 @@ export default class OpcodeDecoder {
         ops[0x21] = control => { // LD HL, d16 - Carrega o valor de 16 bits no HL
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
                 control.registers.HL = (high << 8) | low;
             });
         };
         ops[0x22] = control => { // LD (HL+), A - Carrega o valor do A no endereço apontado por HL e incrementa HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(control.registers.HL, control.registers.A);
                 control.registers.HL = control.ALU.INC_16(control.registers.HL);
             });
         };
         ops[0x23] = control => { // INC HL - Incrementa o valor de HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.HL = control.ALU.INC_16(control.registers.HL);
             });
         };
@@ -248,7 +248,7 @@ export default class OpcodeDecoder {
             control.registers.H = control.ALU.DEC(control.registers.H);
         };
         ops[0x26] = control => { // LD H, d8 - Carrega o valor de 8 bits no H
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.H = control.fetchByte();
             });
         };
@@ -256,11 +256,11 @@ export default class OpcodeDecoder {
             control.registers.A = control.ALU.DAA(control.registers.A);
         };
         ops[0x28] = control => { // JR Z, r8 - Salta para um endereço relativo de 8 bits se a flag Z estiver setada
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const byte = control.fetchByte();
 
                 if (control.flags.Z === 1) {
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         const displacement = (byte << 24) >> 24; // Sign extend 8 to 32
                         control.registers.PC = (control.registers.PC + displacement) & 0xFFFF;
                     });
@@ -268,18 +268,18 @@ export default class OpcodeDecoder {
             });
         };
         ops[0x29] = control => { // ADD HL, HL - Adiciona o valor de HL ao HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.HL = control.ALU.ADD_16(control.registers.HL, control.registers.HL);
             });
         };
         ops[0x2A] = control => { // LD A, (HL+) - Carrega o valor no endereço apontado por HL no A e incrementa HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.bus.readByte(control.registers.HL);
                 control.registers.HL = control.ALU.INC_16(control.registers.HL);
             });
         };
         ops[0x2B] = control => { // DEC HL - Decrementa o valor de HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.HL = control.ALU.DEC_16(control.registers.HL);
             });
         };
@@ -290,7 +290,7 @@ export default class OpcodeDecoder {
             control.registers.L = control.ALU.DEC(control.registers.L);
         };
         ops[0x2E] = control => { // LD L, d8 - Carrega o valor de 8 bits no L
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.L = control.fetchByte();
             });
         };
@@ -300,11 +300,11 @@ export default class OpcodeDecoder {
             control.flags.H = 1;
         };
         ops[0x30] = control => { // JR NC - Salta para um endereço relativo de 8 bits se a flag C não estiver setada
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const byte = control.fetchByte();
                 
                 if (control.flags.C === 0) {
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         const displacement = (byte << 24) >> 24; // Sign extend 8 to 32
                         control.registers.PC = (control.registers.PC + displacement) & 0xFFFF;
                     });
@@ -314,34 +314,34 @@ export default class OpcodeDecoder {
         ops[0x31] = control => { // LD SP, d16 - Carrega o valor de 16 bits no SP
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
                 control.registers.SP = (high << 8) | low;
             });
         };
         ops[0x32] = control => { // LD (HL-), A - Carrega o valor do A no endereço apontado por HL e decrementa HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(control.registers.HL, control.registers.A);
                 control.registers.HL = control.ALU.DEC_16(control.registers.HL);
             });
         };
         ops[0x33] = control => { // INC SP - Incrementa o valor do SP
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
             });
         };
         ops[0x34] = control => { // INC (HL) - Incrementa o valor no endereço apontado por HL
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(control.registers.HL);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const result = control.ALU.INC(value);
                 control.bus.writeByte(control.registers.HL, result);
             });
@@ -349,11 +349,11 @@ export default class OpcodeDecoder {
         ops[0x35] = control => { // DEC (HL) - Decrementa o valor no endereço apontado por HL
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(control.registers.HL);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const result = control.ALU.DEC(value);
                 control.bus.writeByte(control.registers.HL, result);
             });
@@ -361,11 +361,11 @@ export default class OpcodeDecoder {
         ops[0x36] = control => { // LD (HL), d8 - Carrega o valor de 8 bits no endereço apontado por HL
             let immediate = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 immediate = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(control.registers.HL, immediate);
             });
         };
@@ -375,11 +375,11 @@ export default class OpcodeDecoder {
             control.flags.H = 0;
         };
         ops[0x38] = control => { // JR C, r8 - Salta para um endereço relativo de 8 bits se a flag C estiver setada
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const byte = control.fetchByte();
                 
                 if (control.flags.C === 1) {
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         const displacement = (byte << 24) >> 24; // Sign extend 8 to 32
                         control.registers.PC = (control.registers.PC + displacement) & 0xFFFF;
                     });
@@ -387,18 +387,18 @@ export default class OpcodeDecoder {
             });
         };
         ops[0x39] = control => { // ADD HL, SP - Adiciona o valor do SP ao HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.HL = control.ALU.ADD_16(control.registers.HL, control.registers.SP);
             });
         };
         ops[0x3A] = control => { // LD A, (HL-) - Carrega o valor no endereço apontado por HL no A e decrementa HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.bus.readByte(control.registers.HL);
                 control.registers.HL = control.ALU.DEC_16(control.registers.HL);
             });
         };
         ops[0x3B] = control => { // DEC SP - Decrementa o valor do SP
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = control.ALU.DEC_16(control.registers.SP);
             });
         };
@@ -409,7 +409,7 @@ export default class OpcodeDecoder {
             control.registers.A = control.ALU.DEC(control.registers.A);
         };
         ops[0x3E] = control => { // LD A, d8 - Carrega o valor de 8 bits no A
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.fetchByte();
             });
         };
@@ -437,7 +437,7 @@ export default class OpcodeDecoder {
             control.registers.B = control.registers.L;
         };
         ops[0x46] = control => { // LD B, (HL) - Carrega o valor no endereço apontado por HL no B
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.B = control.bus.readByte(control.registers.HL);
             });
         };
@@ -463,7 +463,7 @@ export default class OpcodeDecoder {
             control.registers.C = control.registers.L;
         };
         ops[0x4E] = control => { // LD C, (HL) - Carrega o valor no endereço apontado por HL no C
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.C = control.bus.readByte(control.registers.HL);
             });
         };
@@ -489,7 +489,7 @@ export default class OpcodeDecoder {
             control.registers.D = control.registers.L;
         };
         ops[0x56] = control => { // LD D, (HL) - Carrega o valor no endereço apontado por HL no D
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.D = control.bus.readByte(control.registers.HL);
             });
         };
@@ -515,7 +515,7 @@ export default class OpcodeDecoder {
             control.registers.E = control.registers.L;
         };
         ops[0x5E] = control => { // LD E, (HL) - Carrega o valor no endereço apontado por HL no E
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.E = control.bus.readByte(control.registers.HL);
             });
         };
@@ -541,7 +541,7 @@ export default class OpcodeDecoder {
             control.registers.H = control.registers.L;
         };
         ops[0x66] = control => { // LD H, (HL) - Carrega o valor no endereço apontado por HL no H
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.H = control.bus.readByte(control.registers.HL);
             });
         };
@@ -567,7 +567,7 @@ export default class OpcodeDecoder {
             control.registers.L = control.registers.L;
         };
         ops[0x6E] = control => { // LD L, (HL) - Carrega o valor no endereço apontado por HL no L
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.L = control.bus.readByte(control.registers.HL);
             });
         };
@@ -575,32 +575,32 @@ export default class OpcodeDecoder {
             control.registers.L = control.registers.A;
         };
         ops[0x70] = control => { // LD (HL), B - Armazena o valor do B no endereço apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(control.registers.HL, control.registers.B);
             });
         };
         ops[0x71] = control => { // LD (HL), C - Armazena o valor do C no endereço apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(control.registers.HL, control.registers.C);
             });
         };
         ops[0x72] = control => { // LD (HL), D - Armazena o valor do D no endereço apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(control.registers.HL, control.registers.D);
             });
         };
         ops[0x73] = control => { // LD (HL), E - Armazena o valor do E no endereço apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(control.registers.HL, control.registers.E);
             });
         };
         ops[0x74] = control => { // LD (HL), H - Armazena o valor do H no endereço apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(control.registers.HL, control.registers.H);
             });
         };
         ops[0x75] = control => { // LD (HL), L - Armazena o valor do L no endereço apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(control.registers.HL, control.registers.L);
             });
         };
@@ -614,7 +614,7 @@ export default class OpcodeDecoder {
             }
         };
         ops[0x77] = control => { // LD (HL), A - Armazena o valor do A no endereço apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(control.registers.HL, control.registers.A);
             });
         };
@@ -637,7 +637,7 @@ export default class OpcodeDecoder {
             control.registers.A = control.registers.L;
         };
         ops[0x7E] = control => { // LD A, (HL) - Carrega o valor no endereço apontado por HL no A
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.bus.readByte(control.registers.HL);
             });
         };
@@ -663,7 +663,7 @@ export default class OpcodeDecoder {
             control.registers.A = control.ALU.ADD(control.registers.A, control.registers.L);
         };
         ops[0x86] = control => { // ADD A, (HL) - Adiciona o valor no endereço apontado por HL ao A
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.ADD(control.registers.A, control.bus.readByte(control.registers.HL));
             });
         };
@@ -689,7 +689,7 @@ export default class OpcodeDecoder {
             control.registers.A = control.ALU.ADC(control.registers.A, control.registers.L, control.flags.C);
         };
         ops[0x8E] = control => { // ADC A, (HL) - Adiciona o valor no endereço apontado por HL ao A com carry
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.ADC(control.registers.A, control.bus.readByte(control.registers.HL), control.flags.C);
             });
         };
@@ -715,7 +715,7 @@ export default class OpcodeDecoder {
             control.registers.A = control.ALU.SUB(control.registers.A, control.registers.L);
         };
         ops[0x96] = control => { // SUB (HL) - Subtrai o valor no endereço apontado por HL do A
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.SUB(control.registers.A, control.bus.readByte(control.registers.HL));
             });
         };
@@ -741,7 +741,7 @@ export default class OpcodeDecoder {
             control.registers.A = control.ALU.SBC(control.registers.A, control.registers.L, control.flags.C);
         };
         ops[0x9E] = control => { // SBC (HL) - Subtrai o valor no endereço apontado por HL do A com carry
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.SBC(control.registers.A, control.bus.readByte(control.registers.HL), control.flags.C);
             });
         };
@@ -767,7 +767,7 @@ export default class OpcodeDecoder {
             control.registers.A = control.ALU.AND(control.registers.A, control.registers.L);
         };
         ops[0xA6] = control => { // AND (HL) - Faz um AND do A com o valor no endereço apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.AND(control.registers.A, control.bus.readByte(control.registers.HL));
             });
         };
@@ -793,7 +793,7 @@ export default class OpcodeDecoder {
             control.registers.A = control.ALU.XOR(control.registers.A, control.registers.L);
         };
         ops[0xAE] = control => { // XOR (HL) - Faz um XOR do A com o valor no endereço apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.XOR(control.registers.A, control.bus.readByte(control.registers.HL));
             });
         };
@@ -819,7 +819,7 @@ export default class OpcodeDecoder {
             control.registers.A = control.ALU.OR(control.registers.A, control.registers.L);
         };
         ops[0xB6] = control => { // OR (HL) - Faz um OR do A com o valor no endereço apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.OR(control.registers.A, control.bus.readByte(control.registers.HL));
             });
         };
@@ -845,7 +845,7 @@ export default class OpcodeDecoder {
             control.ALU.SUB(control.registers.A, control.registers.L);
         };
         ops[0xBE] = control => { // CP (HL) - Compara o A com o valor no endereço apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.ALU.SUB(control.registers.A, control.bus.readByte(control.registers.HL));
             });
         };
@@ -855,32 +855,32 @@ export default class OpcodeDecoder {
         ops[0xC0] = control => { // RET NZ - Retorna de uma chamada de sub-rotina se a flag Z não estiver setada
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 if (control.flags.Z === 0) {
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         low = control.bus.readByte(control.registers.SP) & 0xFF;
                         control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                     });
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         const high = control.bus.readByte(control.registers.SP) & 0xFF;
                         control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                         control.registers.PC = ((high << 8) | low) & 0xFFFF;
                     });
 
-                    control.sequencer.enqueue(() => {});
+                    control.sequencer.mcycle(() => {});
                 }
             });
         };
         ops[0xC1] = control => { // POP BC - Desempilha o valor de BC
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.bus.readByte(control.registers.SP) & 0xFF;
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.bus.readByte(control.registers.SP) & 0xFF;
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                 control.registers.BC = ((high << 8) | low) & 0xFFFF;
@@ -889,15 +889,15 @@ export default class OpcodeDecoder {
         ops[0xC2] = control => { // JP NZ, a16 - Salta para o endereço de 16 bits se a flag Z não estiver setada
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
 
                 if (control.flags.Z === 0) {
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         const address = ((high << 8) | low) & 0xFFFF;
                         control.registers.PC = address;
                     });
@@ -908,15 +908,15 @@ export default class OpcodeDecoder {
             let low = 0;
             let high = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 high = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const address = ((high << 8) | low) & 0xFFFF;
                 control.registers.PC = address;
             });
@@ -924,26 +924,26 @@ export default class OpcodeDecoder {
         ops[0xC4] = control => { // CALL NZ, a16 - Chama uma sub-rotina no endereço de 16 bits se a flag Z não estiver setada
             let low = 0;
             
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
                 const address = control.registers.PC & 0xFFFF;
 
                 if (control.flags.Z === 0) {
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                         control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
                     });
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                         control.bus.writeByte(control.registers.SP, address & 0xFF);
                     });
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         control.registers.PC = ((high << 8) | low) & 0xFFFF;
                     });
                 }
@@ -952,89 +952,89 @@ export default class OpcodeDecoder {
         ops[0xC5] = control => { // PUSH BC - Empilha o valor de BC
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.registers.BC & 0xFFFF;
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, (value >> 8) & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, value & 0xFF);
             });
         };
         ops[0xC6] = control => { // ADD A, d8 - Adiciona o valor de 8 bits ao A
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.ADD(control.registers.A, control.fetchByte());
             });
         };
         ops[0xC7] = control => { // RST 00H - Chama a sub-rotina no endereço 0x0000
             let address = control.registers.PC & 0xFFFF;
 
-            control.sequencer.enqueue(() => {});
+            control.sequencer.mcycle(() => {});
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, address & 0xFF);
                 control.registers.PC = 0x0000;
             });
         };
         ops[0xC8] = control => { // RET Z - Retorna de uma chamada de sub-rotina se a flag Z estiver setada
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 if (control.flags.Z === 1) {
                     let low = 0;
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         low = control.bus.readByte(control.registers.SP) & 0xFF;
                         control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                     });
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         const high = control.bus.readByte(control.registers.SP) & 0xFF;
                         control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                         control.registers.PC = ((high << 8) | low) & 0xFFFF;
                     });
 
-                    control.sequencer.enqueue(() => {});
+                    control.sequencer.mcycle(() => {});
                 }
             });
         };
         ops[0xC9] = control => { // RET - Retorna de uma chamada de sub-rotina
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.bus.readByte(control.registers.SP);
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.bus.readByte(control.registers.SP);
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                 control.registers.PC = (high << 8) | low;
             });
             
-            control.sequencer.enqueue(() => {});
+            control.sequencer.mcycle(() => {});
         };
         ops[0xCA] = control => { // JP Z, a16 - Salta para o endereço de 16 bits se a flag Z estiver setada
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
 
                 if (control.flags.Z === 1) {
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         control.registers.PC = ((high << 8) | low) & 0xFFFF;
                     });
                 }
@@ -1046,106 +1046,106 @@ export default class OpcodeDecoder {
         ops[0xCC] = control => { // CALL Z, a16 - Chama uma sub-rotina no endereço de 16 bits se a flag Z estiver setada
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
 
                 if (control.flags.Z === 1) {
                     const address = control.registers.PC & 0xFFFF;
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                         control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
                     });
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                         control.bus.writeByte(control.registers.SP, address & 0xFF);
                         control.registers.PC = ((high << 8) | low) & 0xFFFF;
                     });
 
-                    control.sequencer.enqueue(() => {});
+                    control.sequencer.mcycle(() => {});
                 }
             });
         };
         ops[0xCD] = control => { // CALL a16 - Chama uma sub-rotina no endereço de 16 bits
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
                 const address = control.registers.PC & 0xFFFF;
 
-                control.sequencer.enqueue(() => {
+                control.sequencer.mcycle(() => {
                     control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                     control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
                 });
 
-                control.sequencer.enqueue(() => {
+                control.sequencer.mcycle(() => {
                     control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                     control.bus.writeByte(control.registers.SP, address & 0xFF);
                     control.registers.PC = ((high << 8) | low) & 0xFFFF;
                 });
 
-                control.sequencer.enqueue(() => {});
+                control.sequencer.mcycle(() => {});
             });
         };
         ops[0xCE] = control => { // ADC A, d8 - Adiciona o valor de 8 bits ao A com carry
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.ADC(control.registers.A, control.fetchByte(), control.flags.C);
             });
         };
         ops[0xCF] = control => { // RST 08H - Chama a sub-rotina no endereço 0x0008
             const address = control.registers.PC & 0xFFFF;
 
-            control.sequencer.enqueue(() => {});
+            control.sequencer.mcycle(() => {});
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, address & 0xFF);
                 control.registers.PC = 0x0008;
             });
         };
         ops[0xD0] = control => { // RET NC - Retorna de uma chamada de sub-rotina se a flag C não estiver setada
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 if (control.flags.C === 0) {
                     let low = 0;
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         low = control.bus.readByte(control.registers.SP) & 0xFF;
                         control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                     });
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         const high = control.bus.readByte(control.registers.SP) & 0xFF;
                         control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                         control.registers.PC = ((high << 8) | low) & 0xFFFF;
                     });
 
-                    control.sequencer.enqueue(() => {});
+                    control.sequencer.mcycle(() => {});
                 }
             });
         };
         ops[0xD1] = control => { // POP DE - Desempilha o valor de DE
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.bus.readByte(control.registers.SP) & 0xFF;
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.bus.readByte(control.registers.SP) & 0xFF;
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                 control.registers.DE = ((high << 8) | low) & 0xFFFF;
@@ -1154,15 +1154,15 @@ export default class OpcodeDecoder {
         ops[0xD2] = control => { // JP NC, a16 - Salta para o endereço de 16 bits se a flag C não estiver setada
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
 
                 if (control.flags.C === 0) {
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         control.registers.PC = ((high << 8) | low) & 0xFFFF;
                     });
                 }
@@ -1174,64 +1174,64 @@ export default class OpcodeDecoder {
         ops[0xD4] = control => { // CALL NC, a16 - Chama uma sub-rotina no endereço de 16 bits se a flag C não estiver setada
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
 
                 if (control.flags.C === 0) {
                     const address = control.registers.PC & 0xFFFF;
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                         control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
                     });
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                         control.bus.writeByte(control.registers.SP, address & 0xFF);
                         control.registers.PC = ((high << 8) | low) & 0xFFFF;
                     });
 
-                    control.sequencer.enqueue(() => {});
+                    control.sequencer.mcycle(() => {});
                 }
             });
         };
         ops[0xD5] = control => { // PUSH DE - Empilha o valor de DE
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.registers.DE & 0xFFFF;
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, (value >> 8) & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, value & 0xFF);
             });
         };
         ops[0xD6] = control => { // SUB d8 - Subtrai o valor de 8 bits do A
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.SUB(control.registers.A, control.fetchByte());
             });
         };
         ops[0xD7] = control => { // RST 10H - Chama a sub-rotina no endereço 0x0010
             const address = control.registers.PC & 0xFFFF;
 
-            control.sequencer.enqueue(() => {});
+            control.sequencer.mcycle(() => {});
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, address & 0xFF);
                 control.registers.PC = 0x0010;
@@ -1240,53 +1240,53 @@ export default class OpcodeDecoder {
         ops[0xD8] = control => { // RET C - Retorna de uma chamada de sub-rotina se a flag C estiver setada
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 if (control.flags.C === 1) {
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         low = control.bus.readByte(control.registers.SP) & 0xFF;
                         control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                     });
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         const high = control.bus.readByte(control.registers.SP) & 0xFF;
                         control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                         control.registers.PC = ((high << 8) | low) & 0xFFFF;
                     });
 
-                    control.sequencer.enqueue(() => {});
+                    control.sequencer.mcycle(() => {});
                 }
             });
         };
         ops[0xD9] = control => { // RETI - Retorna de uma chamada de sub-rotina e habilita as interrupções
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.bus.readByte(control.registers.SP) & 0xFF;
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.bus.readByte(control.registers.SP) & 0xFF;
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                 control.registers.PC = ((high << 8) | low) & 0xFFFF;
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.IME = true;
             });
         };
         ops[0xDA] = control => { // JP C, a16 - Salta para o endereço de 16 bits se a flag C estiver setada
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
 
                 if (control.flags.C === 1) {
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         control.registers.PC = ((high << 8) | low) & 0xFFFF;
                     });
                 }
@@ -1298,28 +1298,28 @@ export default class OpcodeDecoder {
         ops[0xDC] = control => { // CALL C, a16 - Chama uma sub-rotina no endereço de 16 bits se a flag C estiver setada
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.fetchByte();
 
                 if (control.flags.C === 1) {
                     const address = control.registers.PC & 0xFFFF;
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                         control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
                     });
 
-                    control.sequencer.enqueue(() => {
+                    control.sequencer.mcycle(() => {
                         control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                         control.bus.writeByte(control.registers.SP, address & 0xFF);
                         control.registers.PC = ((high << 8) | low) & 0xFFFF;
                     });
 
-                    control.sequencer.enqueue(() => {});
+                    control.sequencer.mcycle(() => {});
                 }
             });
         };
@@ -1327,21 +1327,21 @@ export default class OpcodeDecoder {
             console.error('Unimplemented instruction: DD');
         };
         ops[0xDE] = control => { // SBC A, d8 - Subtrai o valor de 8 bits do A com carry
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.SBC(control.registers.A, control.fetchByte(), control.flags.C);
             });
         };
         ops[0xDF] = control => { // RST 18H - Chama a sub-rotina no endereço 0x0018
             const address = control.registers.PC & 0xFFFF;
 
-            control.sequencer.enqueue(() => {});
+            control.sequencer.mcycle(() => {});
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, address & 0xFF);
                 control.registers.PC = 0x0018;
@@ -1350,30 +1350,30 @@ export default class OpcodeDecoder {
         ops[0xE0] = control => { // LDH (a8), A - Armazena o valor do A no endereço 0xFF00 + valor de 8 bits
             let offset = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 offset = control.fetchByte() & 0xFF;
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(0xFF00 | offset, control.registers.A);
             });
         };
         ops[0xE1] = control => { // POP HL - Desempilha o valor de HL
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.bus.readByte(control.registers.SP) & 0xFF;
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.bus.readByte(control.registers.SP) & 0xFF;
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                 control.registers.HL = ((high << 8) | low) & 0xFFFF;
             });
         };
         ops[0xE2] = control => { // LD (C), A - Armazena o valor do A no endereço 0xFF00 + valor do C
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(0xFF00 + control.registers.C, control.registers.A);
             });
         };
@@ -1386,36 +1386,36 @@ export default class OpcodeDecoder {
         ops[0xE5] = control => { // PUSH HL - Empilha o valor de HL
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.registers.HL & 0xFFFF;
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, (value >> 8) & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, value & 0xFF);
             });
         };
         ops[0xE6] = control => { // AND d8 - Faz um AND do A com o valor de 8 bits
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.AND(control.registers.A, control.fetchByte());
             });
         };
         ops[0xE7] = control => { // RST 20H - Chama a sub-rotina no endereço 0x0020
             const address = control.registers.PC & 0xFFFF;
 
-            control.sequencer.enqueue(() => {});
+            control.sequencer.mcycle(() => {});
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, address & 0xFF);
                 control.registers.PC = 0x0020;
@@ -1424,11 +1424,11 @@ export default class OpcodeDecoder {
         ops[0xE8] = control => { // ADD SP, r8 - Adiciona o valor de 8 bits ao SP
             let immediate = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 immediate = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const sp = control.registers.SP;
                 const signed = (immediate << 24) >> 24; // Converte para signed 32 bits
 
@@ -1439,7 +1439,7 @@ export default class OpcodeDecoder {
                 control.registers.SP = (sp + signed) & 0xFFFF;
             });
 
-            control.sequencer.enqueue(() => {});
+            control.sequencer.mcycle(() => {});
         };
         ops[0xE9] = control => { // JP (HL) - Salta para o endereço apontado por HL
             control.registers.PC = control.registers.HL;
@@ -1448,15 +1448,15 @@ export default class OpcodeDecoder {
             let low = 0;
             let high = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 high = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const address = ((high << 8) | low) & 0xFFFF;
                 control.bus.writeByte(address, control.registers.A);
             });
@@ -1471,21 +1471,21 @@ export default class OpcodeDecoder {
             console.error('Unimplemented instruction: ED');
         };
         ops[0xEE] = control => { // XOR d8 - Faz um XOR do A com o valor de 8 bits
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.XOR(control.registers.A, control.fetchByte());
             });
         };
         ops[0xEF] = control => { // RST 28H - Chama a sub-rotina no endereço 0x0028
             const address = control.registers.PC & 0xFFFF;
 
-            control.sequencer.enqueue(() => {});
+            control.sequencer.mcycle(() => {});
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, address & 0xFF);
                 control.registers.PC = 0x0028;
@@ -1494,11 +1494,11 @@ export default class OpcodeDecoder {
         ops[0xF0] = control => { // LDH A, (a8) - Carrega o valor no endereço 0xFF00 + valor de 8 bits no A
             let offset = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 offset = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const address = (0xFF00 | offset) & 0xFFFF;
                 control.registers.A = control.bus.readByte(address);
             });
@@ -1506,19 +1506,19 @@ export default class OpcodeDecoder {
         ops[0xF1] = control => { // POP AF - Desempilha o valor de AF
             let low = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.bus.readByte(control.registers.SP) & 0xFF;
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const high = control.bus.readByte(control.registers.SP) & 0xFF;
                 control.registers.SP = (control.registers.SP + 1) & 0xFFFF;
                 control.registers.AF = ((high << 8) | (low & 0xF0)) & 0xFFFF;
             });
         };
         ops[0xF2] = control => { // LD A, (C) - Carrega o valor no endereço 0xFF00 + valor do C no A
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.bus.readByte(0xFF00 + control.registers.C);
             });
         };
@@ -1532,36 +1532,36 @@ export default class OpcodeDecoder {
         ops[0xF5] = control => { // PUSH AF - Empilha o valor de AF
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.registers.AF;
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, (value >> 8) & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, value & 0xFF);
             });
         };
         ops[0xF6] = control => { // OR d8 - Faz um OR do A com o valor de 8 bits
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.A = control.ALU.OR(control.registers.A, control.fetchByte());
             });
         };
         ops[0xF7] = control => { // RST 30H - Chama a sub-rotina no endereço 0x0030
             const address = control.registers.PC & 0xFFFF;
 
-            control.sequencer.enqueue(() => {});
+            control.sequencer.mcycle(() => {});
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, address & 0xFF);
                 control.registers.PC = 0x0030;
@@ -1570,11 +1570,11 @@ export default class OpcodeDecoder {
         ops[0xF8] = control => { // LD HL, SP+r8 - Carrega o SP mais o valor de 8 bits em HL
             let immediate = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 immediate = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const sp = control.registers.SP;
                 const signed = (immediate << 24) >> 24; // Converte para signed 32 bits
 
@@ -1586,7 +1586,7 @@ export default class OpcodeDecoder {
             });
         };
         ops[0xF9] = control => { // LD SP, HL - Carrega o valor de HL no SP
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = control.registers.HL;
             });
         };
@@ -1594,15 +1594,15 @@ export default class OpcodeDecoder {
             let low = 0;
             let high = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 low = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 high = control.fetchByte();
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const address = ((high << 8) | low) & 0xFFFF;
                 control.registers.A = control.bus.readByte(address);
             });
@@ -1617,21 +1617,21 @@ export default class OpcodeDecoder {
             console.error('Unimplemented instruction: FD');
         };
         ops[0xFE] = control => { // CP d8 - Compara o A com o valor de 8 bits
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.ALU.SUB(control.registers.A, control.fetchByte());
             });
         };
         ops[0xFF] = control => { // RST 38H - Chama a sub-rotina no endereço 0x0038
             const address = control.registers.PC;
 
-            control.sequencer.enqueue(() => {});
+            control.sequencer.mcycle(() => {});
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, (address >> 8) & 0xFF);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.registers.SP = (control.registers.SP - 1) & 0xFFFF;
                 control.bus.writeByte(control.registers.SP, address & 0xFF);
                 control.registers.PC = 0x0038;
@@ -1664,11 +1664,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(control.registers.HL);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const result = control.ALU.RLC(value);
                 control.bus.writeByte(address, result);
             });
@@ -1698,11 +1698,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(control.registers.HL);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const result = control.ALU.RRC(value);
                 control.bus.writeByte(address, result);
             });
@@ -1732,11 +1732,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(control.registers.HL);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const result = control.ALU.RL(value);
                 control.bus.writeByte(address, result);
             });
@@ -1766,11 +1766,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(control.registers.HL);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const result = control.ALU.RR(value);
                 control.bus.writeByte(address, result);
             });
@@ -1800,11 +1800,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(control.registers.HL);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const result = control.ALU.SLA(value);
                 control.bus.writeByte(address, result);
             });
@@ -1834,11 +1834,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(control.registers.HL);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const result = control.ALU.SRA(value);
                 control.bus.writeByte(address, result);
             });
@@ -1868,11 +1868,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const result = control.ALU.SWAP(value);
                 control.bus.writeByte(address, result);
             });
@@ -1902,11 +1902,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(control.registers.HL);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const result = control.ALU.SRL(value);
                 control.bus.writeByte(address, result);
             });
@@ -1933,7 +1933,7 @@ export default class OpcodeDecoder {
             control.ALU.BIT(0, control.registers.L);
         };
         ops[0x46] = control => { // BIT 0, (HL) - Testa o bit 0 do valor apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const value = control.bus.readByte(control.registers.HL);
                 control.ALU.BIT(0, value);
             });
@@ -1960,7 +1960,7 @@ export default class OpcodeDecoder {
             control.ALU.BIT(1, control.registers.L);
         };
         ops[0x4E] = control => { // BIT 1, (HL) - Testa o bit 1 do valor apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const value = control.bus.readByte(control.registers.HL);
                 control.ALU.BIT(1, value);
             });
@@ -1987,7 +1987,7 @@ export default class OpcodeDecoder {
             control.ALU.BIT(2, control.registers.L);
         };
         ops[0x56] = control => { // BIT 2, (HL) - Testa o bit 2 do valor apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const value = control.bus.readByte(control.registers.HL);
                 control.ALU.BIT(2, value);
             });
@@ -2014,7 +2014,7 @@ export default class OpcodeDecoder {
             control.ALU.BIT(3, control.registers.L);
         };
         ops[0x5E] = control => { // BIT 3, (HL) - Testa o bit 3 do valor apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const value = control.bus.readByte(control.registers.HL);
                 control.ALU.BIT(3, value);
             });
@@ -2041,7 +2041,7 @@ export default class OpcodeDecoder {
             control.ALU.BIT(4, control.registers.L);
         };
         ops[0x66] = control => { // BIT 4, (HL) - Testa o bit 4 do valor apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const value = control.bus.readByte(control.registers.HL);
                 control.ALU.BIT(4, value);
             });
@@ -2068,7 +2068,7 @@ export default class OpcodeDecoder {
             control.ALU.BIT(5, control.registers.L);
         };
         ops[0x6E] = control => { // BIT 5, (HL) - Testa o bit 5 do valor apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const value = control.bus.readByte(control.registers.HL);
                 control.ALU.BIT(5, value);
             });
@@ -2095,7 +2095,7 @@ export default class OpcodeDecoder {
             control.ALU.BIT(6, control.registers.L);
         };
         ops[0x76] = control => { // BIT 6, (HL) - Testa o bit 6 do valor apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const value = control.bus.readByte(control.registers.HL);
                 control.ALU.BIT(6, value);
             });
@@ -2122,7 +2122,7 @@ export default class OpcodeDecoder {
             control.ALU.BIT(7, control.registers.L);
         };
         ops[0x7E] = control => { // BIT 7, (HL) - Testa o bit 7 do valor apontado por HL
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 const value = control.bus.readByte(control.registers.HL);
                 control.ALU.BIT(7, value);
             });
@@ -2152,11 +2152,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.RES(0, value));
             });
         };
@@ -2185,11 +2185,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.RES(1, value));
             });
         };
@@ -2218,11 +2218,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.RES(2, value));
             });
         };
@@ -2251,11 +2251,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.RES(3, value));
             });
         };
@@ -2284,11 +2284,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.RES(4, value));
             });
         };
@@ -2317,11 +2317,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.RES(5, value));
             });
         };
@@ -2350,11 +2350,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.RES(6, value));
             });
         };
@@ -2383,11 +2383,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.RES(7, value));
             });
         };
@@ -2416,11 +2416,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.SET(0, value));
             });
         };
@@ -2449,11 +2449,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.SET(1, value));
             });
         };
@@ -2482,11 +2482,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.SET(2, value));
             });
         };
@@ -2515,11 +2515,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.SET(3, value));
             });
         };
@@ -2548,11 +2548,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.SET(4, value));
             });
         };
@@ -2581,11 +2581,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.SET(5, value));
             });
         };
@@ -2614,11 +2614,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.SET(6, value));
             });
         };
@@ -2647,11 +2647,11 @@ export default class OpcodeDecoder {
             const address = control.registers.HL;
             let value = 0;
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 value = control.bus.readByte(address);
             });
 
-            control.sequencer.enqueue(() => {
+            control.sequencer.mcycle(() => {
                 control.bus.writeByte(address, control.ALU.SET(7, value));
             });
         };

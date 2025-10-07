@@ -20,7 +20,7 @@ export default class Timer {
             case 0xFF05: return this.TIMA; // Timer Counter
             case 0xFF06: return this.TMA; // Timer Modulo
             case 0xFF07: return this.TAC | 0xF8; // Timer Control
-            default: return 0xFF;
+            default:     return 0xFF;
         }
     }
 

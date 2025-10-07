@@ -16,7 +16,7 @@ export default class ControlUnit {
         this.registers  = new Registers(this.flags);
         this.ALU        = new ALU(this.flags);
         this.decoder    = new OpcodeDecoder(this);
-        this.sequencer  = new Sequencer(this);
+        this.sequencer  = new Sequencer();
 
         this.cycle = 0;
         this.halted = 0;

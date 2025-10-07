@@ -15,7 +15,7 @@ export default class MBC1 {
             this.RAM = new Memory(ramBanks * this.ramBankSize);
         }
 
-        this.ramEnabled = false;
+        this.ramEnabled = 0;
         this.low5 = 1; // Banco ROM baixo (5 bits)
         this.high2 = 0; // Banco ROM alto (2 bits)
         this.mode = 0; // Modo de banco (0 = ROM, 1 = RAM)
@@ -55,29 +55,24 @@ export default class MBC1 {
     }
 
     readERAM(address) {
-        address &= 0xFFFF;
+        address &= 0x1FFF;
 
         if (!this.RAM || !this.ramEnabled) return 0xFF;
-        if (address < 0xA000 || address > 0xBFFF) return 0xFF;
 
         const bank = this._calcRamBank();
         const base = bank * this.ramBankSize;
-        const offset = address - 0xA000;
-        return this.RAM.readByte(base + offset);
+        return this.RAM.readByte(base + address);
     }
 
     writeERAM(address, value) {
-        address &= 0xFFFF;
+        address &= 0x1FFF;
         value &= 0xFF;
 
-        if (!this.RAM) return;
-        if (!this.ramEnabled) return;
-        if (address < 0xA000 || address > 0xBFFF) return;
+        if (!this.RAM || !this.ramEnabled) return;
 
         const bank = this._calcRamBank();
         const base = bank * this.ramBankSize;
-        const offset = address - 0xA000;
-        this.RAM.writeByte(base + offset, value);
+        this.RAM.writeByte(base + address, value);
     }
 
     _calcSwitchableRomBank() {

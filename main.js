@@ -32,7 +32,7 @@ $start.addEventListener('click', () => {
     emulator = new Emulator();
     emulator.loadROM(romBytes);
 
-    emulator.console.PPU.onFrame = (frame) => {
+    emulator.console.LCDC.onFrame = frame => {
         const data = imageData.data;
         for (let index = 0; index < 160 * 144; index++) {
             const pixel = frame[index] >>> 0; // ARGB
