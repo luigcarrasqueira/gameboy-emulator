@@ -5,7 +5,7 @@ import Memory from "./Memory.js";
 import Timer from "./Timer.js";
 import CPU from "./CPU.js";
 
-// Placa-mãe do Game Boy
+// Placa-mãe do Game Boy (DMG-01)
 export default class GameBoy {
     constructor() {
         this.ROM  = new Memory(0x8000, 1); // ROM do cartucho
@@ -14,11 +14,11 @@ export default class GameBoy {
         this.HRAM = new Memory(0x7F);      // High RAM
         this.IO   = new Memory(0x80);      // Registros de I/O
 
-        this.bus = new SystemBus();
-        this.CPU = new CPU(this.bus);
-        this.LCDC = new LCDController(mask => this.CPU.interrupts.request(mask));
-        this.joypad = new Joypad();
-        this.timer = new Timer(mask => this.CPU.interrupts.request(mask));
+        this.bus    = new SystemBus();
+        this.CPU    = new CPU(this.bus);
+        this.LCDC   = new LCDController(mask => this.CPU.interrupts.request(mask));
+        this.joypad = new Joypad(mask => this.CPU.interrupts.request(mask));
+        this.timer  = new Timer(mask => this.CPU.interrupts.request(mask));
 
         this.bus.setLCDC(this.LCDC);
         this.bus.setJoypad(this.joypad);

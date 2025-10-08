@@ -1272,7 +1272,7 @@ export default class OpcodeDecoder {
             });
 
             control.sequencer.mcycle(() => {
-                control.IME = true;
+                control.IME = 1;
             });
         };
         ops[0xDA] = control => { // JP C, a16 - Salta para o endereço de 16 bits se a flag C estiver setada
@@ -1523,8 +1523,8 @@ export default class OpcodeDecoder {
             });
         };
         ops[0xF3] = control => { // DI - Desabilita as interrupções
-            control.IME = false;
-            control.imeDelay = 0;
+            control.IME = 0;
+            control.eiDelay = 0;
         };
         ops[0xF4] = () => { // Não implementado
             console.error('Unimplemented instruction: F4');
@@ -1608,7 +1608,7 @@ export default class OpcodeDecoder {
             });
         };
         ops[0xFB] = control => { // EI - Habilita as interrupções
-            control.IMEDelay = 1;
+            control.eiDelay = 1;
         };
         ops[0xFC] = () => { // Não implementado
             console.error('Unimplemented instruction: FC');

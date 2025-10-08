@@ -67,9 +67,9 @@ export default class SystemBus {
     }
 
     attachCartridge(romRead, romWrite, eramRead, eramWrite) {
-        if (romRead)  this.romRead  = romRead;
-        if (romWrite) this.romWrite = romWrite;
-        if (eramRead) this.eramRead = eramRead;
+        if (romRead)   this.romRead   = romRead;
+        if (romWrite)  this.romWrite  = romWrite;
+        if (eramRead)  this.eramRead  = eramRead;
         if (eramWrite) this.eramWrite = eramWrite;
     }
 
@@ -89,7 +89,7 @@ export default class SystemBus {
         }
 
         if (address >= 0x8000 && address <= 0x9FFF) { // 0x8000-0x9FFF VRAM (LCDC)
-            if (this.LCDC.mode === LCD_MODE.VRAM) return 0xFF; // Durante o modo 3 (transferência de dados para LCD), VRAM não pode ser lida
+            if (this.LCDC.mode === LCD_MODE.VRAM) return 0xFF; // Inacessivel durante modo 3
             return this.LCDC.readByte(address - 0x8000) & 0xFF;
         }
 
@@ -107,7 +107,6 @@ export default class SystemBus {
 
         if (address >= 0xFE00 && address <= 0xFE9F) { // 0xFE00-0xFE9F OAM (LCDC)
             if (this.LCDC.mode === LCD_MODE.OAM || this.LCDC.mode === LCD_MODE.VRAM) return 0xFF; // Durante os modos 2 e 3, OAM não pode ser lida
-
             return this.LCDC.readByte(address - 0xFE00) & 0xFF;
         }
 
@@ -133,7 +132,6 @@ export default class SystemBus {
 
         if (address >= 0xFF40 && address <= 0xFF4B) { // 0xFF40-0xFF4B LCDC
             if (address === 0xFF46) return this.DMA.readByte(0xFF46) & 0xFF; // 0xFF46 DMA
-
             return this.LCDC.readByte(address) & 0xFF;
         }
 
@@ -166,6 +164,7 @@ export default class SystemBus {
         }
 
         if (address >= 0x8000 && address <= 0x9FFF) { // 0x8000-0x9FFF VRAM (LCDC)
+            if (this.LCDC.mode === LCD_MODE.VRAM) return; // Inacessivel durante modo 3
             this.LCDC.writeByte(address - 0x8000, value);
             return;
         }

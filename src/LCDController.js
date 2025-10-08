@@ -4,7 +4,6 @@ import Memory from "./Memory.js";
 import IRQ from "./IRQ.js";
 
 // Fontes de interrupção do STAT
-
 const STAT_SRC = Object.freeze({
     HBLANK: 0x08,
     VBLANK: 0x10,
@@ -24,14 +23,13 @@ export default class LCDController {
         this.SCX  = 0x00; // Scroll X
         this.LY   = 0x00; // LCD Y Coordinate
         this.LYC  = 0x00; // LY Compare
-        this.DMA  = 0x00; // DMA Transfer and Start Address
         this.BGP  = 0xFC; // BG Palette Data
         this.OBP0 = 0xFF; // Object Palette 0 Data
         this.OBP1 = 0xFF; // Object Palette 1 Data
         this.WY   = 0x00; // Window Y Position
         this.WX   = 0x00; // Window X Position
 
-        this.cycle = 0;
+        this.pixelClock = 0;
         this.mode = LCD_MODE.OAM;
         this.requestInterrupt = requestInterrupt;
 
@@ -42,12 +40,12 @@ export default class LCDController {
     readByte(address) {
         address &= 0xFFFF;
 
-        if (address <= 0x1FFF) {
-            return this.VRAM.readByte(address) & 0xFF;
-        }
-
         if (address <= 0x009F) {
             return this.OAM.readByte(address) & 0xFF;
+        }
+
+        if (address <= 0x1FFF) {
+            return this.VRAM.readByte(address) & 0xFF;
         }
 
         switch(address) {
@@ -57,7 +55,6 @@ export default class LCDController {
             case LCD_REG.SCX:  return this.SCX;
             case LCD_REG.LY:   return this.LY;
             case LCD_REG.LYC:  return this.LYC;
-            case LCD_REG.DMA:  return this.DMA;
             case LCD_REG.BGP:  return this.BGP;
             case LCD_REG.OBP0: return this.OBP0;
             case LCD_REG.OBP1: return this.OBP1;
@@ -71,13 +68,13 @@ export default class LCDController {
         address &= 0xFFFF;
         value &= 0xFF;
 
-        if (address <= 0x1FFF) {
-            this.VRAM.writeByte(address, value);
+        if (address <= 0x009F) {
+            this.OAM.writeByte(address, value);
             return;
         }
 
-        if (address <= 0x009F) {
-            this.OAM.writeByte(address, value);
+        if (address <= 0x1FFF) {
+            this.VRAM.writeByte(address, value);
             return;
         }
 
@@ -85,9 +82,17 @@ export default class LCDController {
             case 0xFF40:
                 this.LCDC = value;
                 return;
-            case 0xFF41:
-                this.STAT = (this.STAT & 0x07) | (value & 0xF8);
+            case 0xFF41: {
+                const oldEnableLYC = this.STAT & STAT_SRC.LYC; // bit 6 enabled anterior
+                this.STAT = (this.STAT & 0x07) | 0x80 | (value & 0x78);
+                if (this.LY === this.LYC) this.STAT |= 0x04;
+                else this.STAT &= ~0x04;
+                const newEnableLYC = this.STAT & STAT_SRC.LYC; // bit 6 enabled atual
+                if (!oldEnableLYC && newEnableLYC && (this.STAT & 0x04)) {
+                    this.requestInterrupt(IRQ.LCDSTAT);
+                }
                 return;
+            }
             case 0xFF42:
                 this.SCY = value;
                 return;
@@ -97,12 +102,17 @@ export default class LCDController {
             case 0xFF44: // Reset LY
                 this.LY = 0;
                 return;
-            case 0xFF45:
+            case 0xFF45: {
                 this.LYC = value;
+                const oldCoincidence = (this.STAT & 0x04) !== 0;
+                if (this.LY === this.LYC) this.STAT |= 0x04;
+                else this.STAT &= ~0x04;
+                const newCoincidence = (this.STAT & 0x04) !== 0;
+                if (!oldCoincidence && newCoincidence && (this.STAT & STAT_SRC.LYC)) {
+                    this.requestInterrupt(IRQ.LCDSTAT);
+                }
                 return;
-            case 0xFF46:
-                this.DMA = value;
-                return;
+            }
             case 0xFF47:
                 this.BGP = value;
                 return;
@@ -122,42 +132,67 @@ export default class LCDController {
     }
 
     tick(cycles) {
-        if ((this.LCDC & 0x80) === 0) {
+        if ((this.LCDC & 0x80) === 0) { // LCD desabilitado
             this.LY = 0;
+            this.pixelClock = 0;
             this.mode = LCD_MODE.HBLANK;
-            this.cycle = 0;
             return;
         }
-
-        this.cycle += cycles;
-
-        while (this.cycle >= 456) {
-            this.cycle -= 456;
+        
+        
+        while (cycles-- > 0) {
+            const previousLY = this.LY;
+            this.pixelClock++;
 
             if (this.LY < 144) {
-                this.renderScanline(this.LY);
-                this.mode = LCD_MODE.HBLANK;
-                if (this.STAT & STAT_SRC.HBLANK) this.requestInterrupt(IRQ.LCDSTAT);
-            }
-
-            this.LY++;
-
-            if (this.LY === 144) {
-                this.mode = LCD_MODE.VBLANK;
-                this.requestInterrupt(IRQ.VBLANK);
-                if (this.STAT & STAT_SRC.VBLANK) this.requestInterrupt(IRQ.LCDSTAT);
-                if (this.onFrame) this.onFrame(this.frame);
-            } else if (this.LY > 153) {
-                this.LY = 0;
-                this.mode = LCD_MODE.OAM; // Searching OAM
-                if (this.STAT & STAT_SRC.OAM) this.requestInterrupt(IRQ.LCDSTAT);
-            }
-
-            if (this.LY === this.LYC) {
-                this.STAT |= 0x04;
-                if (this.STAT & STAT_SRC.LYC) this.requestInterrupt(IRQ.LCDSTAT);
+                if (this.pixelClock === 1 && this.mode !== LCD_MODE.OAM) {
+                    this.mode = LCD_MODE.OAM; // 0...79
+                    if (this.STAT & STAT_SRC.OAM) {
+                        this.requestInterrupt(IRQ.LCDSTAT);
+                    }
+                } else if (this.pixelClock === 80 && this.mode !== LCD_MODE.VRAM) {
+                    this.mode = LCD_MODE.VRAM; // 80...251
+                } else if (this.pixelClock === 252) {
+                    this.renderScanline(this.LY);
+                    this.mode = LCD_MODE.HBLANK;
+                    if (this.STAT & STAT_SRC.HBLANK) {
+                        this.requestInterrupt(IRQ.LCDSTAT);
+                    }
+                }
             } else {
-                this.STAT &= ~0x04;
+                if (this.mode !== LCD_MODE.VBLANK) {
+                    this.mode = LCD_MODE.VBLANK;
+                }
+            }
+
+            if (this.pixelClock >= 456) {
+                this.pixelClock = 0;
+                this.LY = (this.LY + 1) & 0xFF;
+
+                if (previousLY === 143 && this.LY === 144) {
+                    this.requestInterrupt(IRQ.VBLANK);
+                    if (this.STAT & STAT_SRC.VBLANK) {
+                        this.requestInterrupt(IRQ.LCDSTAT);
+                    }
+
+                    if (this.onFrame) this.onFrame(this.frame);
+                }
+
+                if (this.LY > 153) {
+                    this.LY = 0;
+                    this.mode = LCD_MODE.OAM;
+                    if (this.STAT & STAT_SRC.OAM) {
+                        this.requestInterrupt(IRQ.LCDSTAT);
+                    }
+                }
+            }
+
+            const coincidence = (this.LY === this.LYC);
+            const oldCoincidence = (this.STAT & 0x04) !== 0;
+            if (coincidence) this.STAT |= 0x04;
+            else this.STAT &= ~0x04;
+            if (!oldCoincidence && coincidence && (this.STAT & STAT_SRC.LYC)) {
+                this.requestInterrupt(IRQ.LCDSTAT);
             }
         }
     }
@@ -173,7 +208,6 @@ export default class LCDController {
         const scx = this.SCX;
         const bgMapBaseVRAM = (this.LCDC & 0x08) ? 0x1C00 : 0x1800;
         const tileBaseUnsigned = (this.LCDC & 0x10) !== 0;
-        const tileBaseVRAM = tileBaseUnsigned ? 0x0000 : 0x0800;
         const lineY = (line + scy) & 0xFF;
         const tileRow = (lineY >> 3) & 0x1F;
         const pixelYInTile = lineY & 0x07;

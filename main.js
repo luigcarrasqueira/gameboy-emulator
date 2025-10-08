@@ -1,12 +1,12 @@
 import Emulator from './src/Emulator.js';
 
-const $rom = document.getElementById('romInput');
-const $start = document.getElementById('startButton');
-const $stop = document.getElementById('stopButton');
-const $log = document.getElementById('output');
+const $rom    = document.getElementById('romInput');
+const $start  = document.getElementById('startButton');
+const $stop   = document.getElementById('stopButton');
+const $log    = document.getElementById('output');
 const $canvas = document.getElementById('screen');
-const ctx = $canvas.getContext('2d');
-const imageData = ctx.createImageData(160, 144);
+const ctx     = $canvas.getContext('2d');
+const imgData = ctx.createImageData(160, 144);
 
 let romBytes = null;
 let emulator = null;
@@ -33,7 +33,7 @@ $start.addEventListener('click', () => {
     emulator.loadROM(romBytes);
 
     emulator.console.LCDC.onFrame = frame => {
-        const data = imageData.data;
+        const data = imgData.data;
         for (let index = 0; index < 160 * 144; index++) {
             const pixel = frame[index] >>> 0; // ARGB
             const alpha = (pixel >>> 24) & 0xFF;
@@ -46,7 +46,7 @@ $start.addEventListener('click', () => {
             data[j + 2] = blue;
             data[j + 3] = alpha;
         }
-        ctx.putImageData(imageData, 0, 0);
+        ctx.putImageData(imgData, 0, 0);
     };
 
     emulator.onStop = () => {

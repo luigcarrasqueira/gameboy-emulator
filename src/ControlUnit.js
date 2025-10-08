@@ -21,8 +21,8 @@ export default class ControlUnit {
         this.cycle = 0;
         this.halted = 0;
         this.haltBug = 0;
-        this.IME = 0; // Interrupt Master Enable
-        this.IMEDelay = 0; // Delay para habilitar IME após EI
+        this.IME = 0; // Interrupt Master Enable (flip-flop)
+        this.eiDelay = 0; // Delay para EI (flip-flop)
     }
 
     step() {
@@ -47,9 +47,11 @@ export default class ControlUnit {
 
         this.sequencer.tick(this);
 
-        if (this.IMEDelay > 0) {
-            this.IMEDelay--;
-            if (this.IMEDelay === 0) this.IME = 1;
+        if (!this.sequencer.busy()) {
+            if (this.eiDelay === 1) {
+                this.IME = 1;
+                this.eiDelay = 0;
+            }
         }
     }
 

@@ -1,6 +1,6 @@
 import ControlUnit from "./ControlUnit.js";
 
-// Processador (CPU - Central Processing Unit)
+// Processador Sharp LR35902 (CPU - Central Processing Unit)
 export default class CPU {
     constructor(bus) {
         this.bus = bus;
