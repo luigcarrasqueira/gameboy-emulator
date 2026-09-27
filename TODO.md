@@ -2,7 +2,16 @@
 
 Objetivo: reproduzir o Game Boy DMG-01, incluindo comportamento observável dos registradores, restrições de memória e temporização dos componentes. Game Boy Color e Super Game Boy exigem escopos próprios.
 
-Análise realizada em 27/09/2026 sobre o commit `a7c130a`. As tarefas abaixo ainda não foram implementadas. Esta lista distingue defeitos reproduzidos, funcionalidades ausentes e detalhes que precisam de investigação.
+Análise inicial realizada em 27/09/2026 sobre o commit `a7c130a`. Os itens marcados foram implementados e exercitados nos casos descritos em `TESTING.md`; os demais continuam pendentes. Aprovação em testes locais não significa aprovação de todos os testes de hardware.
+
+## Primeiro lote — barramento e interrupções
+
+- Separação de VRAM/OAM, acesso do DMA, intervalo inicial e reinício, espelhos de páginas altas e acesso com LCD desligado corrigidos.
+- Atraso de EI, limites entre instruções, atendimento de IRQ em cinco ciclos de máquina, IE e opcodes ilegais corrigidos.
+- Base dos tiles assinados corrigida junto à correção das leituras da VRAM.
+- Adicionados testes de regressão e executor de ROMs com resultados separados de aprovação, falha e timeout.
+- As 15 ROMs básicas de CPU e temporização continuam aprovadas. Os testes de áudio e sincronização fina do LCD continuam falhando; suas tarefas permanecem abertas.
+- A temporização de DMA foi orientada pelos fontes Mooneye e testada localmente, inclusive com execução da CPU. Executar as ROMs Mooneye continua pendente.
 
 ## Estado da validação
 
@@ -15,25 +24,25 @@ Análise realizada em 27/09/2026 sobre o commit `a7c130a`. As tarefas abaixo ain
 
 ## Prioridade 1 — Barramento e DMA
 
-- [ ] Separar explicitamente o acesso à VRAM do acesso à OAM. Atualmente, offsets `0x0000–0x009F` enviados pelo barramento à VRAM atingem a OAM. Arquivos: `src/SystemBus.js`, `src/LCDController.js`.
-- [ ] Corrigir também as leituras internas de tiles para que offsets baixos da VRAM não sejam interpretados como OAM.
-- [ ] Dar ao DMA acesso ao barramento sem aplicar o bloqueio destinado à CPU. As leituras da transferência atualmente retornam `0xFF` durante sua própria execução.
-- [ ] Permitir que o DMA escreva diretamente na OAM. Atualmente, suas escritas são descartadas pelo bloqueio do barramento.
+- [x] Separar explicitamente o acesso à VRAM do acesso à OAM. Offsets `0x0000–0x009F` agora representam VRAM; OAM tem acesso separado. Arquivos: `src/SystemBus.js`, `src/LCDController.js`.
+- [x] Corrigir também as leituras internas de tiles para que offsets baixos da VRAM não sejam interpretados como OAM.
+- [x] Dar ao DMA acesso ao barramento sem aplicar o bloqueio destinado à CPU.
+- [x] Permitir que o DMA escreva diretamente na OAM.
 - [ ] Validar início, duração, reinício e páginas de origem da transferência OAM DMA contra testes de hardware. A implementação atual transfere um byte a cada quatro ciclos, mas isso sozinho não valida todo o protocolo.
-- [ ] Garantir que VRAM e OAM fiquem acessíveis à CPU quando o LCD estiver desligado, inclusive imediatamente após a escrita em LCDC.
-- [ ] Corrigir os bits superiores de IE: preservar o valor escrito em vez de forçar os bits 5–7 a `1`. Arquivo: `src/InterruptsController.js`.
+- [x] Garantir que VRAM e OAM fiquem acessíveis à CPU quando o LCD estiver desligado, inclusive imediatamente após a escrita em LCDC.
+- [x] Corrigir os bits superiores de IE: preservar o valor escrito em vez de forçar os bits 5–7 a `1`. Arquivo: `src/InterruptsController.js`.
 - [ ] Revisar máscaras de leitura, bits não utilizados, registradores somente de leitura/escrita e endereços não mapeados do DMG, incluindo `FF50`.
 
 Critério de conclusão: escritas em VRAM não alteram OAM; DMA copia os 160 bytes corretamente; bloqueios da CPU e acesso com LCD desligado passam em testes específicos.
 
 ## Prioridade 2 — CPU e interrupções
 
-- [ ] Corrigir o atraso de `EI`: habilitar IME somente depois da instrução seguinte. Hoje a habilitação ocorre ao terminar o próprio `EI`. Arquivos: `src/OpcodeDecoder.js`, `src/ControlUnit.js`.
-- [ ] Atender interrupções somente entre instruções, sem interromper uma fila de microciclos em execução.
-- [ ] Dividir o atendimento de interrupções em cinco ciclos de máquina, intercalando os componentes e os acessos à pilha corretamente, em vez de somar 20 ciclos de uma vez.
+- [x] Corrigir o atraso de `EI`: habilitar IME somente depois da instrução seguinte. Arquivos: `src/OpcodeDecoder.js`, `src/ControlUnit.js`.
+- [x] Atender interrupções somente entre instruções, sem interromper uma fila de microciclos em execução.
+- [x] Dividir o atendimento de interrupções em cinco ciclos de máquina, intercalando os componentes e os acessos à pilha, em vez de somar 20 ciclos de uma vez.
 - [ ] Validar interações entre `EI`, `DI`, `RETI`, interrupções pendentes e instruções consecutivas de habilitação.
 - [ ] Implementar `STOP` do DMG: parada, comportamento do divisor e condição de despertar. A implementação atual segue executando instruções e escreve em `FF4D`, um registrador do CGB.
-- [ ] Implementar o travamento da CPU nos 11 opcodes ilegais: `D3`, `DB`, `DD`, `E3`, `E4`, `EB`, `EC`, `ED`, `F4`, `FC`, `FD`. Eles não são instruções válidas faltantes; hoje apenas registram uma mensagem e continuam.
+- [x] Implementar o travamento da CPU nos 11 opcodes ilegais: `D3`, `DB`, `DD`, `E3`, `E4`, `EB`, `EC`, `ED`, `F4`, `FC`, `FD`. Eles não são instruções válidas faltantes.
 - [ ] Validar `HALT`, despertar com IME desligado e halt bug com testes dedicados. Existe implementação parcial, mas a fidelidade ainda não foi comprovada.
 - [ ] Revisar a posição dos acessos ao barramento dentro de `CALL`, `RET`, instruções condicionais e demais instruções de múltiplos ciclos. Duração total correta não garante ordem correta dos acessos.
 - [ ] Investigar e reproduzir o bug de corrupção de OAM causado por determinadas operações da CPU no DMG.
@@ -42,7 +51,7 @@ Critério de conclusão: manter os testes básicos aprovados e obter resultados 
 
 ## Prioridade 3 — Gráficos e PPU
 
-- [ ] Corrigir a base dos tiles com índice assinado: o índice zero deve apontar para `0x9000`, correspondente ao offset `0x1000` da VRAM. Arquivo: `src/LCDController.js`.
+- [x] Corrigir a base dos tiles com índice assinado: o índice zero deve apontar para `0x9000`, correspondente ao offset `0x1000` da VRAM. Arquivo: `src/LCDController.js`.
 - [ ] Implementar a janela: bits de LCDC, mapa próprio, `WX`, `WY`, recorte e contador interno de linhas da janela.
 - [ ] Implementar sprites de 8×8 e 8×16, transparência, inversão horizontal/vertical e seleção de paleta.
 - [ ] Implementar seleção de até dez sprites por linha e prioridade entre sprites conforme o DMG.
@@ -132,10 +141,10 @@ Critério de conclusão: velocidade estável, entrada responsiva, áudio sincron
 
 ## Validação contínua e conclusão de fidelidade
 
-- [ ] Criar um executor automatizado de testes que registre aprovação, falha e timeout separadamente.
+- [x] Criar um executor automatizado de testes que registre aprovação, falha e timeout separadamente.
 - [ ] Registrar origem e versão das ROMs utilizadas e manter dependências de teste separadas do código do emulador.
 - [ ] Transformar os defeitos reproduzidos nesta análise em testes de regressão.
-- [ ] Reexecutar as suítes de CPU e memória depois das mudanças de temporização.
+- [x] Reexecutar as suítes de CPU e memória depois das mudanças de temporização deste lote.
 - [ ] Executar testes de hardware específicos, como Mooneye, escolhendo os resultados esperados para a revisão de DMG adotada.
 - [ ] Executar suítes de gráficos, interrupções, DMA, timer, serial e áudio com resultados verificáveis.
 - [ ] Comparar frames, registros e eventos por ciclo quando testes básicos não forem suficientes para detectar diferenças.

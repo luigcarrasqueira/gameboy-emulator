@@ -40,8 +40,8 @@ export default class LCDController {
     readByte(address) {
         address &= 0xFFFF;
 
-        if (address <= 0x009F) {
-            return this.OAM.readByte(address) & 0xFF;
+        if (address >= 0xFE00 && address <= 0xFE9F) {
+            return this.OAM.readByte(address - 0xFE00) & 0xFF;
         }
 
         if (address <= 0x1FFF) {
@@ -68,8 +68,8 @@ export default class LCDController {
         address &= 0xFFFF;
         value &= 0xFF;
 
-        if (address <= 0x009F) {
-            this.OAM.writeByte(address, value);
+        if (address >= 0xFE00 && address <= 0xFE9F) {
+            this.OAM.writeByte(address - 0xFE00, value);
             return;
         }
 
@@ -79,9 +79,18 @@ export default class LCDController {
         }
 
         switch(address) {
-            case 0xFF40:
+            case 0xFF40: {
+                const wasEnabled = (this.LCDC & 0x80) !== 0;
                 this.LCDC = value;
+                if (wasEnabled !== ((value & 0x80) !== 0)) {
+                    this.LY = 0;
+                    this.pixelClock = 0;
+                    this.mode = (value & 0x80) ? LCD_MODE.OAM : LCD_MODE.HBLANK;
+                    if (this.LY === this.LYC) this.STAT |= 0x04;
+                    else this.STAT &= ~0x04;
+                }
                 return;
+            }
             case 0xFF41: {
                 const oldEnableLYC = this.STAT & STAT_SRC.LYC; // bit 6 enabled anterior
                 this.STAT = (this.STAT & 0x07) | 0x80 | (value & 0x78);
@@ -223,7 +232,7 @@ export default class LCDController {
                 tileAddressVRAM = tileNumber * 16;
             } else {
                 const signedIndex = (tileNumber << 24) >> 24; // Sign extend
-                tileAddressVRAM = (signedIndex + 128) * 16;
+                tileAddressVRAM = 0x1000 + signedIndex * 16;
             }
 
             const low = this.readByte(tileAddressVRAM + (pixelYInTile * 2));

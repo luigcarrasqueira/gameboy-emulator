@@ -13,7 +13,7 @@ export default class InterruptsController {
             case 0xFF0F: // Interrupt Flag
                 return (this.IF & 0x1F) | 0xE0;
             case 0xFFFF: // Interrupt Enable
-                return (this.IE & 0x1F) | 0xE0;
+                return this.IE;
             default:
                 return 0xFF;
         }
@@ -28,14 +28,14 @@ export default class InterruptsController {
                 this.IF = value & 0x1F;
                 return 1;
             case 0xFFFF: // Interrupt Enable
-                this.IE = value & 0x1F;
+                this.IE = value;
                 return 1;
             default:
                 return 0;
         }
     }
 
-    request(mask) { // Sinalizar IRQ: mask é o índice 0..4 (0=VBLANK, 1=LCDSTAT, 2=TIMER, 3=SERIAL, 4=JOYPAD)
+    request(mask) { // Máscara dos bits de IRQ, não índice.
         this.IF |= mask & 0x1F;
     }
 
@@ -48,7 +48,7 @@ export default class InterruptsController {
     }
 
     highestPriority() { // retorna o bit da IRQ de maior prioridade que está pendente
-        const pending = this.IF & this.IE;
+        const pending = this.pending();
         if (pending & IRQ.VBLANK) return IRQ.VBLANK;
         if (pending & IRQ.LCDSTAT) return IRQ.LCDSTAT;
         if (pending & IRQ.TIMER) return IRQ.TIMER;

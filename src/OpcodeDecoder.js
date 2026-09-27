@@ -1168,8 +1168,8 @@ export default class OpcodeDecoder {
                 }
             });
         };
-        ops[0xD3] = () => { // Não implementado
-            console.error('Unimplemented instruction: D3');
+        ops[0xD3] = control => { // Opcode ilegal: trava a CPU.
+            control.locked = true;
         };
         ops[0xD4] = control => { // CALL NC, a16 - Chama uma sub-rotina no endereço de 16 bits se a flag C não estiver setada
             let low = 0;
@@ -1292,8 +1292,8 @@ export default class OpcodeDecoder {
                 }
             });
         };
-        ops[0xDB] = () => { // Não implementado
-            console.error('Unimplemented instruction: DB');
+        ops[0xDB] = control => { // Opcode ilegal: trava a CPU.
+            control.locked = true;
         };
         ops[0xDC] = control => { // CALL C, a16 - Chama uma sub-rotina no endereço de 16 bits se a flag C estiver setada
             let low = 0;
@@ -1323,8 +1323,8 @@ export default class OpcodeDecoder {
                 }
             });
         };
-        ops[0xDD] = control => { // Não implementado
-            console.error('Unimplemented instruction: DD');
+        ops[0xDD] = control => { // Opcode ilegal: trava a CPU.
+            control.locked = true;
         };
         ops[0xDE] = control => { // SBC A, d8 - Subtrai o valor de 8 bits do A com carry
             control.sequencer.mcycle(() => {
@@ -1377,11 +1377,11 @@ export default class OpcodeDecoder {
                 control.bus.writeByte(0xFF00 + control.registers.C, control.registers.A);
             });
         };
-        ops[0xE3] = () => { // Não implementado
-            console.error('Unimplemented instruction: E3');
+        ops[0xE3] = control => { // Opcode ilegal: trava a CPU.
+            control.locked = true;
         };
-        ops[0xE4] = () => { // Não implementado
-            console.error('Unimplemented instruction: E4');
+        ops[0xE4] = control => { // Opcode ilegal: trava a CPU.
+            control.locked = true;
         };
         ops[0xE5] = control => { // PUSH HL - Empilha o valor de HL
             let value = 0;
@@ -1461,14 +1461,14 @@ export default class OpcodeDecoder {
                 control.bus.writeByte(address, control.registers.A);
             });
         };
-        ops[0xEB] = () => { // Não implementado
-            console.error('Unimplemented instruction: EB');
+        ops[0xEB] = control => { // Opcode ilegal: trava a CPU.
+            control.locked = true;
         };
-        ops[0xEC] = () => { // Não implementado
-            console.error('Unimplemented instruction: EC');
+        ops[0xEC] = control => { // Opcode ilegal: trava a CPU.
+            control.locked = true;
         };
-        ops[0xED] = () => { // Não implementado
-            console.error('Unimplemented instruction: ED');
+        ops[0xED] = control => { // Opcode ilegal: trava a CPU.
+            control.locked = true;
         };
         ops[0xEE] = control => { // XOR d8 - Faz um XOR do A com o valor de 8 bits
             control.sequencer.mcycle(() => {
@@ -1526,8 +1526,8 @@ export default class OpcodeDecoder {
             control.IME = 0;
             control.eiDelay = 0;
         };
-        ops[0xF4] = () => { // Não implementado
-            console.error('Unimplemented instruction: F4');
+        ops[0xF4] = control => { // Opcode ilegal: trava a CPU.
+            control.locked = true;
         };
         ops[0xF5] = control => { // PUSH AF - Empilha o valor de AF
             let value = 0;
@@ -1608,13 +1608,13 @@ export default class OpcodeDecoder {
             });
         };
         ops[0xFB] = control => { // EI - Habilita as interrupções
-            control.eiDelay = 1;
+            if (control.eiDelay === 0) control.eiDelay = 2;
         };
-        ops[0xFC] = () => { // Não implementado
-            console.error('Unimplemented instruction: FC');
+        ops[0xFC] = control => { // Opcode ilegal: trava a CPU.
+            control.locked = true;
         };
-        ops[0xFD] = () => { // Não implementado
-            console.error('Unimplemented instruction: FD');
+        ops[0xFD] = control => { // Opcode ilegal: trava a CPU.
+            control.locked = true;
         };
         ops[0xFE] = control => { // CP d8 - Compara o A com o valor de 8 bits
             control.sequencer.mcycle(() => {

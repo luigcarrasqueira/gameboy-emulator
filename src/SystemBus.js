@@ -6,8 +6,8 @@ import Serial from "./Serial.js";
 export default class SystemBus {
     constructor() {
         this.DMA = new DMA(
-            address          => this.readByte(address),
-            (address, value) => this.writeByte(address, value)
+            address          => this.readDMAByte(address),
+            (address, value) => this.LCDC.OAM.writeByte(address - 0xFE00, value)
         );
 
         this.LCDC       = null;
@@ -76,10 +76,21 @@ export default class SystemBus {
     readByte(address) {
         address &= 0xFFFF;
 
-        if (this.DMA.active && !(address >= 0xFF80 && address <= 0xFFFE) && address !== 0xFF46) {
-            return 0xFF; // Durante o DMA, leituras de HRAM retornam 0xFF
+        if (this.DMA.active && !(address >= 0xFF80 && address <= 0xFFFE)) {
+            return 0xFF; // Durante o DMA, apenas HRAM pode ser lida pela CPU.
         }
 
+        return this.readMappedByte(address);
+    }
+
+    readDMAByte(address) {
+        // No DMG, páginas E0–FF do DMA acessam o espelho de C0–DF,
+        // incluindo FE/FF, que não leem OAM nem registradores de I/O.
+        if (address >= 0xE000) address &= 0xDFFF;
+        return this.readMappedByte(address, true);
+    }
+
+    readMappedByte(address, dma = false) {
         if (this.bootEnabled && this.bootROM && address < this.bootROM.length && address < 0x100) { // Boot ROM mapeada sobre 0x0000-0x00FF enquanto habilitada
             return this.bootROM[address] & 0xFF;
         }
@@ -89,8 +100,8 @@ export default class SystemBus {
         }
 
         if (address >= 0x8000 && address <= 0x9FFF) { // 0x8000-0x9FFF VRAM (LCDC)
-            if (this.LCDC.mode === LCD_MODE.VRAM) return 0xFF; // Inacessivel durante modo 3
-            return this.LCDC.readByte(address - 0x8000) & 0xFF;
+            if (!dma && (this.LCDC.LCDC & 0x80) && this.LCDC.mode === LCD_MODE.VRAM) return 0xFF;
+            return this.LCDC.VRAM.readByte(address - 0x8000) & 0xFF;
         }
 
         if (address >= 0xA000 && address <= 0xBFFF) { // 0xA000-0xBFFF ERAM (cartucho/MBC)
@@ -106,8 +117,8 @@ export default class SystemBus {
         }
 
         if (address >= 0xFE00 && address <= 0xFE9F) { // 0xFE00-0xFE9F OAM (LCDC)
-            if (this.LCDC.mode === LCD_MODE.OAM || this.LCDC.mode === LCD_MODE.VRAM) return 0xFF; // Durante os modos 2 e 3, OAM não pode ser lida
-            return this.LCDC.readByte(address - 0xFE00) & 0xFF;
+            if ((this.LCDC.LCDC & 0x80) && (this.LCDC.mode === LCD_MODE.OAM || this.LCDC.mode === LCD_MODE.VRAM)) return 0xFF;
+            return this.LCDC.OAM.readByte(address - 0xFE00) & 0xFF;
         }
 
         if (address === 0xFF00) { // 0xFF00 joypad
@@ -136,7 +147,7 @@ export default class SystemBus {
         }
 
         if (address === 0xFF50) { // 0xFF50 Boot ROM disable
-            return this.bootEnabled ? 1 : 0;
+            return 0xFF; // Registrador somente de escrita no DMG.
         }
 
         if (address >= 0xFF80 && address <= 0xFFFE) { // 0xFF80-0xFFFE HRAM
@@ -164,8 +175,8 @@ export default class SystemBus {
         }
 
         if (address >= 0x8000 && address <= 0x9FFF) { // 0x8000-0x9FFF VRAM (LCDC)
-            if (this.LCDC.mode === LCD_MODE.VRAM) return; // Inacessivel durante modo 3
-            this.LCDC.writeByte(address - 0x8000, value);
+            if ((this.LCDC.LCDC & 0x80) && this.LCDC.mode === LCD_MODE.VRAM) return;
+            this.LCDC.VRAM.writeByte(address - 0x8000, value);
             return;
         }
 
@@ -185,9 +196,9 @@ export default class SystemBus {
         }
 
         if (address >= 0xFE00 && address <= 0xFE9F) { // 0xFE00-0xFE9F OAM (LCDC)
-            if (this.LCDC.mode === LCD_MODE.OAM || this.LCDC.mode === LCD_MODE.VRAM) return; // Durante os modos 2 e 3, OAM não pode ser escrita
+            if ((this.LCDC.LCDC & 0x80) && (this.LCDC.mode === LCD_MODE.OAM || this.LCDC.mode === LCD_MODE.VRAM)) return;
 
-            this.LCDC.writeByte(address - 0xFE00, value);
+            this.LCDC.OAM.writeByte(address - 0xFE00, value);
             return;
         }
 

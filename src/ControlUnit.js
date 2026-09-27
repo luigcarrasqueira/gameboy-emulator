@@ -23,14 +23,15 @@ export default class ControlUnit {
         this.haltBug = 0;
         this.IME = 0; // Interrupt Master Enable (flip-flop)
         this.eiDelay = 0; // Delay para EI (flip-flop)
+        this.locked = false;
+        this.servicingInterrupt = false;
     }
 
     step() {
-        const start = this.cycle;
-        
-        this.serviceInterrupts();
-
-        if (this.cycle !== start) return;
+        if (this.locked) {
+            this.cycle += 4;
+            return;
+        }
 
         if (this.halted) {
             if (this.interrupts.pending() !== 0) {
@@ -42,15 +43,16 @@ export default class ControlUnit {
         }
 
         if (!this.sequencer.busy()) {
-            this.decoder.step(this);
+            if (!this.serviceInterrupts()) this.decoder.step(this);
         }
 
         this.sequencer.tick(this);
 
         if (!this.sequencer.busy()) {
-            if (this.eiDelay === 1) {
+            if (this.servicingInterrupt) {
+                this.servicingInterrupt = false;
+            } else if (this.eiDelay > 0 && --this.eiDelay === 0) {
                 this.IME = 1;
-                this.eiDelay = 0;
             }
         }
     }
@@ -63,10 +65,10 @@ export default class ControlUnit {
     }
 
     serviceInterrupts() {
-        if (!this.IME) return;
+        if (!this.IME || this.sequencer.busy()) return false;
 
         const pending = this.interrupts.pending();
-        if ((pending & 0x1F) === 0) return;
+        if ((pending & 0x1F) === 0) return false;
 
         let mask = 0;
         let vector = 0;
@@ -75,19 +77,26 @@ export default class ControlUnit {
         else if (pending & 0x04) { mask = IRQ.TIMER; vector = 0x50; }
         else if (pending & 0x08) { mask = IRQ.SERIAL; vector = 0x58; }
         else if (pending & 0x10) { mask = IRQ.JOYPAD; vector = 0x60; }
-        else return;
+        else return false;
 
-        this.cycle += 20;
         this.IME = 0;
         this.halted = 0;
+        this.eiDelay = 0;
+        this.servicingInterrupt = true;
         this.interrupts.acknowledge(mask);
         
         const pc = this.registers.PC;
-        this.registers.SP = (this.registers.SP - 1) & 0xFFFF;
-        this.bus.writeByte(this.registers.SP, (pc >> 8) & 0xFF);
-        this.registers.SP = (this.registers.SP - 1) & 0xFFFF;
-        this.bus.writeByte(this.registers.SP, pc & 0xFF);
-
-        this.registers.PC = vector;
+        this.sequencer.mcycle(() => {});
+        this.sequencer.mcycle(() => {});
+        this.sequencer.mcycle(() => {
+            this.registers.SP = (this.registers.SP - 1) & 0xFFFF;
+            this.bus.writeByte(this.registers.SP, pc >>> 8);
+        });
+        this.sequencer.mcycle(() => {
+            this.registers.SP = (this.registers.SP - 1) & 0xFFFF;
+            this.bus.writeByte(this.registers.SP, pc & 0xFF);
+        });
+        this.sequencer.mcycle(() => { this.registers.PC = vector; });
+        return true;
     }
 }

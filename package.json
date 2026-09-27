@@ -1,0 +1,9 @@
+{
+  "name": "gameboy-emulator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "test:roms": "node tests/run-roms.js"
+  }
+}

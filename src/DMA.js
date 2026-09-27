@@ -8,6 +8,8 @@ export default class DMA {
         this.sourceAddress = 0x0000;
         this.index = 0;
         this.accumulatedCycles = 0;
+        this.startDelay = 0;
+        this.pendingSource = 0;
     }
 
     readByte(address) {
@@ -29,10 +31,11 @@ export default class DMA {
 
         if (address === 0xFF46) {
             this.REGISTER = value;
-            this.sourceAddress = (value << 8) & 0xFF00;
-            this.index = 0;
-            this.accumulatedCycles = 0;
-            this.active = 1;
+            this.pendingSource = value << 8;
+            // M0 contém a escrita; M1 ainda deixa OAM acessível;
+            // a transferência nova começa em M2 (Mooneye oam_dma_start).
+            // Um DMA anterior continua durante esse intervalo.
+            this.startDelay = 8;
             return;
         }
 
@@ -41,22 +44,28 @@ export default class DMA {
     }
 
     tick(cycles) {
-        if (!this.active) return;
+        if (!this.active && !this.startDelay) return;
 
         this.accumulatedCycles += cycles;
 
-        while (this.active && this.accumulatedCycles >= 4) {
+        while ((this.active || this.startDelay) && this.accumulatedCycles >= 4) {
             this.accumulatedCycles -= 4;
 
-            const address = (this.sourceAddress + this.index) & 0xFFFF;
-            const value = this.busRead(address) & 0xFF;
+            if (this.active) {
+                const address = this.sourceAddress + this.index;
+                this.oamWrite(this.index + 0xFE00, this.busRead(address) & 0xFF);
+                if (++this.index === 0xA0) this.active = 0;
+            }
 
-            this.oamWrite(this.index + 0xFE00, value);
-            this.index++;
-        
-            if (this.index >= 0xA0) {
-                this.active = 0;
+            if (this.startDelay > 0) {
+                this.startDelay -= 4;
+                if (this.startDelay === 0) {
+                    this.sourceAddress = this.pendingSource;
+                    this.index = 0;
+                    this.active = 1;
+                }
             }
         }
+        if (!this.active && !this.startDelay) this.accumulatedCycles = 0;
     }
 }
