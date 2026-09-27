@@ -1,0 +1,45 @@
+{
+  "build": "mts-20260714-0944-31510e1",
+  "sourceRevision": "31510e1",
+  "target": "DMG",
+  "download": "https://gekkio.fi/files/mooneye-test-suite/mts-20260714-0944-31510e1/mts-20260714-0944-31510e1.zip",
+  "archiveSha256": "18aa29462dfe1fcd32a2cb3621733abdc72410074918b9245aa99a6920f7d3f2",
+  "cases": [
+    {
+      "file": "acceptance/oam_dma/basic.gb",
+      "checks": "Cópia básica de dados para OAM",
+      "cartridgeType": 0,
+      "sha256": "326b747cac8cc96b62d6ee508e73b87eda24bfe29553d3d32e719f3b6d76c97c"
+    },
+    {
+      "file": "acceptance/oam_dma_start.gb",
+      "checks": "Início e continuidade do DMA anterior durante o atraso de reinício",
+      "cartridgeType": 0,
+      "sha256": "7c39f8f6f8043fe0ea289d8015b3e72c125ac302a22159b49514dd4e78d89dd3"
+    },
+    {
+      "file": "acceptance/oam_dma_timing.gb",
+      "checks": "Acesso a OAM um ciclo antes e imediatamente após o fim do DMA",
+      "cartridgeType": 0,
+      "sha256": "e8477c5da80e4fb7999da08abf01ad2438d65fb308a8f0c36b0c7e464c0ad0e0"
+    },
+    {
+      "file": "acceptance/oam_dma_restart.gb",
+      "checks": "Temporização do fim após reiniciar uma transferência em execução",
+      "cartridgeType": 0,
+      "sha256": "5234eaaa78fcf722a4c8d32bb4f108c65c24e327d062315c6b61f60e535e25de"
+    },
+    {
+      "file": "acceptance/oam_dma/sources-GS.gb",
+      "checks": "Origem em ROM, VRAM, RAM de cartucho, WRAM e páginas E0, FE e FF",
+      "cartridgeType": 27,
+      "sha256": "35a38c640047c38b63da0b929f9d744914ee53555e7ccc6853bcc0e82185f11e"
+    },
+    {
+      "file": "acceptance/oam_dma/reg_read.gb",
+      "checks": "Leitura de FF46 antes, durante e após transferências e reinícios",
+      "cartridgeType": 0,
+      "sha256": "006516fcb302867a2848b47529208ef530669c6445e41d4f3d2dbd33995154a3"
+    }
+  ]
+}

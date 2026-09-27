@@ -76,8 +76,9 @@ export default class SystemBus {
     readByte(address) {
         address &= 0xFFFF;
 
-        if (this.DMA.active && !(address >= 0xFF80 && address <= 0xFFFE)) {
-            return 0xFF; // Durante o DMA, apenas HRAM pode ser lida pela CPU.
+        if (this.DMA.active && !(address >= 0xFF80 && address <= 0xFFFE) && address !== 0xFF46) {
+            // FF46 permanece legível durante a transferência (Mooneye reg_read).
+            return 0xFF;
         }
 
         return this.readMappedByte(address);

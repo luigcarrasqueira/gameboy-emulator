@@ -1,2 +1,5 @@
 # ROMs de teste baixadas para validação local.
 test-roms/
+
+# Jogos locais.
+/games/

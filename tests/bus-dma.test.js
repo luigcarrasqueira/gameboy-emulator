@@ -110,7 +110,7 @@ test('DMA copia apesar das restrições da CPU, que só acessa HRAM', () => {
     gb.WRAM.data.fill(0x42, 0, 160);
     gb.bus.writeByte(0xFF46, 0xC0);
     gb.bus.DMA.tick(8);
-    for (const address of [0, 0x8000, 0xA000, 0xC000, 0xE000, 0xFE00, 0xFF00, 0xFF46, 0xFFFF]) {
+    for (const address of [0, 0x8000, 0xA000, 0xC000, 0xE000, 0xFE00, 0xFF00, 0xFFFF]) {
         assert.equal(gb.bus.readByte(address), 255);
     }
     gb.bus.writeByte(0xC000, 0x12);
@@ -124,6 +124,20 @@ test('DMA copia apesar das restrições da CPU, que só acessa HRAM', () => {
     gb.bus.DMA.tick(640);
     assert.ok(gb.LCDC.OAM.data.every(v => v === 0x42));
     assert.equal(gb.WRAM.data[0], 0x42);
+});
+
+test('FF46 conserva a última escrita durante início, execução, reinício e fim', () => {
+    const gb = consoleWithLCDOff();
+    gb.bus.writeByte(0xFF46, 0x9F);
+    assert.equal(gb.bus.readByte(0xFF46), 0x9F);
+    gb.bus.DMA.tick(8 + 20);
+    assert.equal(gb.bus.readByte(0xFF46), 0x9F);
+    gb.bus.writeByte(0xFF46, 0x42);
+    assert.equal(gb.bus.readByte(0xFF46), 0x42);
+    gb.bus.DMA.tick(4);
+    assert.equal(gb.bus.readByte(0xFF46), 0x42);
+    gb.bus.DMA.tick(4 + 640);
+    assert.equal(gb.bus.readByte(0xFF46), 0x42);
 });
 
 test('reiniciar DMA conserva a cópia antiga durante o atraso e reinicia no índice zero', () => {

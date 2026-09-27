@@ -2,6 +2,7 @@ import Cartridge from "./Cartridge.js";
 import GameBoy from "./GameBoy.js";
 import Memory from "./Memory.js";
 import MBC1 from "./MBC1.js";
+import MBC5 from "./MBC5.js";
 
 export default class Emulator {
     constructor(frameRate = 59.73) {
@@ -52,6 +53,12 @@ export default class Emulator {
             return;
         }
 
+        if (mapper === "MBC5") {
+            const mbc5 = new MBC5(romBytes, hasRAM ? eramBytes : 0);
+            this.console.insertCartridge(new Cartridge(romBytes, { mbc: mbc5 }));
+            return;
+        }
+
         console.warn(`[Emulator] Mapper ${cartType.toString(16)} não suportado; carregando como ROM-only.`);
         const eram = eramBytes > 0 ? new Memory(eramBytes) : null;
         const fallback = new Cartridge(romBytes, { eram });
@@ -76,6 +83,9 @@ export default class Emulator {
             case 0x03: return { mapper: "MBC1", hasRAM: true, battery: true }; // MBC1+RAM+BATTERY
             case 0x08: return { mapper: "ROM", hasRAM: true, battery: false }; // ROM+RAM
             case 0x09: return { mapper: "ROM", hasRAM: true, battery: true }; // ROM+RAM+BATTERY
+            case 0x19: return { mapper: "MBC5", hasRAM: false, battery: false };
+            case 0x1A: return { mapper: "MBC5", hasRAM: true, battery: false };
+            case 0x1B: return { mapper: "MBC5", hasRAM: true, battery: true };
             default: return { mapper: "UNSUPPORTED", hasRAM: false, battery: false };
         }
     }

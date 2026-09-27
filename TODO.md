@@ -11,7 +11,15 @@ Análise inicial realizada em 27/09/2026 sobre o commit `a7c130a`. Os itens marc
 - Base dos tiles assinados corrigida junto à correção das leituras da VRAM.
 - Adicionados testes de regressão e executor de ROMs com resultados separados de aprovação, falha e timeout.
 - As 15 ROMs básicas de CPU e temporização continuam aprovadas. Os testes de áudio e sincronização fina do LCD continuam falhando; suas tarefas permanecem abertas.
-- A temporização de DMA foi orientada pelos fontes Mooneye e testada localmente, inclusive com execução da CPU. Executar as ROMs Mooneye continua pendente.
+- A temporização de DMA foi orientada pelos fontes Mooneye e testada localmente, inclusive com execução da CPU. As seis ROMs Mooneye de DMA foram posteriormente executadas e aprovadas; as outras áreas da suíte continuam pendentes.
+
+## Validação de OAM DMA — 27/09/2026
+
+- Aprovados `basic`, `oam_dma_start`, `oam_dma_timing`, `oam_dma_restart`, `sources-GS` e `reg_read` do build `mts-20260714-0944-31510e1`.
+- Corrigida a leitura de `FF46` durante o DMA, que causava reprovação em `reg_read`.
+- Adicionado MBC5 sem rumble (`0x19–0x1B`), necessário ao cartucho do teste `sources-GS`, sem usar fallback ROM-only.
+- Os 33 testes locais e as 15 ROMs básicas de CPU/memória passaram. As oito ROMs de bancos de ROM MBC5 também passaram.
+- Versão, hashes, procedimentos e limitações em `TESTING.md`; evidências em `tests/reports/oam-dma.json`.
 
 ## Estado da validação
 
@@ -28,7 +36,7 @@ Análise inicial realizada em 27/09/2026 sobre o commit `a7c130a`. Os itens marc
 - [x] Corrigir também as leituras internas de tiles para que offsets baixos da VRAM não sejam interpretados como OAM.
 - [x] Dar ao DMA acesso ao barramento sem aplicar o bloqueio destinado à CPU.
 - [x] Permitir que o DMA escreva diretamente na OAM.
-- [ ] Validar início, duração, reinício e páginas de origem da transferência OAM DMA contra testes de hardware. A implementação atual transfere um byte a cada quatro ciclos, mas isso sozinho não valida todo o protocolo.
+- [x] Validar início, duração, reinício e páginas de origem da transferência OAM DMA contra testes de hardware. Seis ROMs oficiais Mooneye aprovadas, incluindo limites de início/fim, reinício, origens e leitura de FF46. Ver `TESTING.md` e `tests/reports/oam-dma.json`.
 - [x] Garantir que VRAM e OAM fiquem acessíveis à CPU quando o LCD estiver desligado, inclusive imediatamente após a escrita em LCDC.
 - [x] Corrigir os bits superiores de IE: preservar o valor escrito em vez de forçar os bits 5–7 a `1`. Arquivo: `src/InterruptsController.js`.
 - [ ] Revisar máscaras de leitura, bits não utilizados, registradores somente de leitura/escrita e endereços não mapeados do DMG, incluindo `FF50`.
@@ -108,6 +116,7 @@ Critério de conclusão: executar toda a suíte `dmg_sound`, validar registrador
 - [ ] Implementar MBC2 e sua RAM de quatro bits.
 - [ ] Implementar MBC3, seleção de RAM e relógio RTC, incluindo latch, parada e overflow de dias.
 - [ ] Implementar MBC5, bancos de ROM/RAM e sinal de rumble nos tipos correspondentes.
+  - Bancos de ROM/RAM dos tipos sem rumble `0x19–0x1B` implementados para executar o teste de origens de DMA. Rumble e validação completa dos tipos restantes continuam pendentes.
 - [ ] Definir e documentar a cobertura de controladores especiais, como MBC6, MBC7, HuC1, HuC3 e periféricos de cartucho. Compatibilidade universal exige trabalho adicional além dos controladores comuns.
 - [ ] Rejeitar explicitamente controladores não suportados em vez de carregá-los silenciosamente como ROM simples.
 - [ ] Validar cabeçalho, tamanho e compatibilidade da ROM; distinguir cartuchos exclusivos de CGB.
